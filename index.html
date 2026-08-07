@@ -2232,7 +2232,11 @@ if (sb) sb.auth.onAuthStateChange(async (event, session) => {
     currentProfile = null;
     myPets = [];
     discoverPets = [];
-    showScreen('s-splash');
+    // A failed sign-in triggers a cleanup signOut(), which also fires this
+    // event. Don't navigate away from the auth screen while someone is
+    // actively looking at an error message there — that was silently
+    // bouncing people to splash with no explanation.
+    if (currentScreen !== 's-auth') showScreen('s-splash');
   }
 });
 
@@ -2291,6 +2295,7 @@ function authSwitch(mode) {
   document.getElementById('form-reset').style.display = 'none';
   document.getElementById('auth-err').classList.remove('show');
   document.getElementById('auth-ok').classList.remove('show');
+  hideResendConfirm();
   document.getElementById('tab-login').classList.remove('on');
   document.getElementById('tab-signup').classList.remove('on');
   const sub = document.getElementById('auth-sub');
@@ -2383,9 +2388,9 @@ async function doSignup() {
       loadFeed();
       showToast('Welcome to PetXchange, @' + handle + '! 🐾');
     } else {
-      showAuthOk('Account created. Check your email to confirm, then sign in.');
       authSwitch('login');
       document.getElementById('l-email').value = email;
+      showAuthOk('Account created 🎉 We sent a confirmation link to ' + email + '. Open it, then sign in here.');
     }
   } catch(e) {
     console.log('signup error:', e);
@@ -2443,11 +2448,54 @@ async function doLogin() {
     loadFeed();
     showToast('Welcome back to PetXchange! 🐾');
   } catch(e) {
-    showAuthErr(e.message === 'Invalid login credentials'
-      ? 'Wrong password, or that account does not exist.'
-      : e.message || 'Login failed.');
+    const msg = e.message || '';
+    if (/email.*not.*confirmed/i.test(msg)) {
+      showAuthErr('Please confirm your email before signing in — check your inbox (and spam folder) for the link we sent.');
+      showResendConfirm(email || idInput);
+    } else if (msg === 'Invalid login credentials') {
+      showAuthErr('Wrong password, or that account does not exist.');
+      hideResendConfirm();
+    } else {
+      showAuthErr(msg || 'Login failed.');
+      hideResendConfirm();
+    }
   } finally {
     btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+
+function showResendConfirm(email) {
+  let btn = document.getElementById('btn-resend-confirm');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'btn-resend-confirm';
+    btn.type = 'button';
+    btn.style.cssText = 'background:none;border:none;color:var(--coral);font-size:13px;cursor:pointer;display:block;margin:8px auto 0;';
+    document.getElementById('auth-err').insertAdjacentElement('afterend', btn);
+  }
+  btn.textContent = 'Resend confirmation email';
+  btn.dataset.email = email;
+  btn.onclick = () => resendConfirmation(btn.dataset.email);
+  btn.style.display = 'block';
+}
+
+function hideResendConfirm() {
+  const btn = document.getElementById('btn-resend-confirm');
+  if (btn) btn.style.display = 'none';
+}
+
+async function resendConfirmation(email) {
+  if (!email) return;
+  const btn = document.getElementById('btn-resend-confirm');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const { error } = await sb.auth.resend({ type: 'signup', email });
+    if (error) throw error;
+    showAuthOk('Confirmation email resent to ' + email + '. Check your inbox.');
+  } catch(e) {
+    showAuthErr(e.message || 'Could not resend the email. Try again shortly.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Resend confirmation email'; }
   }
 }
 
