@@ -1832,8 +1832,7 @@ try {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,   // keep: needed for email-confirmation links
-      flowType: 'implicit',
-      lock: passThroughLock
+      lock: passThroughLock       // (flowType left at its default — PKCE)
     }
   });
 } catch (err) {
@@ -1881,6 +1880,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if (session) {
       currentUser = session.user;
+      scheduleTokenRefresh(session);
       showScreen('s-discover');
       loadProfile().catch(e => console.log('profile:', e));
       buildCards();
@@ -1894,6 +1894,34 @@ window.addEventListener('DOMContentLoaded', async () => {
     showScreen('s-splash');
   }
 });
+
+// Supabase access tokens last about an hour. Waiting for one to expire and
+// then reacting is what produces the "worked for a while, now it hangs"
+// pattern: the first query after expiry stalls behind a refresh. Instead,
+// schedule a refresh a minute before expiry, while everything is healthy.
+let refreshTimer = null;
+
+function scheduleTokenRefresh(session) {
+  clearTimeout(refreshTimer);
+  if (!session || !session.expires_at) return;
+
+  const msUntilExpiry = (session.expires_at * 1000) - Date.now();
+  const lead = 60000;                                  // refresh 1 min early
+  const delay = Math.max(5000, msUntilExpiry - lead);  // never busy-loop
+
+  console.log('[session] token expires in', Math.round(msUntilExpiry / 60000),
+              'min — refreshing in', Math.round(delay / 60000), 'min');
+
+  refreshTimer = setTimeout(async () => {
+    const ok = await recoverSession();
+    if (!ok) {
+      console.log('[session] proactive refresh failed — signing out cleanly');
+      purgeStoredSession();
+      showToast('Your session expired. Please sign in again.');
+      showScreen('s-splash');
+    }
+  }, delay);
+}
 
 // Wipes the stored auth token. Used when a restored session is unusable —
 // without this, every reload repeats the same failure.
@@ -1999,6 +2027,7 @@ async function recoverSession() {
         return false;
       }
       currentUser = data.session.user;
+      scheduleTokenRefresh(data.session);
       console.log('[session] refreshed');
       return true;
     } catch (e) {
@@ -2022,11 +2051,17 @@ document.addEventListener('visibilitychange', () => {
 
 // Listen for auth changes
 if (sb) sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
+  console.log('[auth]', event, session ? '(session present)' : '(no session)');
+
+  if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
     currentUser = session.user;
-    await loadProfile();
-    updateHeaderAvatar();
+    scheduleTokenRefresh(session);
+    if (event === 'SIGNED_IN') {
+      await loadProfile();
+      updateHeaderAvatar();
+    }
   } else if (event === 'SIGNED_OUT') {
+    clearTimeout(refreshTimer);
     currentUser = null;
     currentProfile = null;
     myPets = [];
@@ -5483,6 +5518,23 @@ async function runDiagnostics() {
   }
   rows.splice(4, 0, bucketRow);
 
+  // Session health — the most common cause of "everything is loading"
+  let sessionLine = '';
+  try {
+    const res = await withDeadline(sb.auth.getSession(), 5000, 'Session');
+    const sess = res && res.data ? res.data.session : null;
+    if (!sess) {
+      sessionLine = '<div style="font-size:12px;color:var(--t2);">Not signed in.</div>';
+    } else {
+      const mins = Math.round(((sess.expires_at * 1000) - Date.now()) / 60000);
+      sessionLine = `<div style="font-size:12px;color:${mins < 0 ? 'var(--red)' : 'var(--t2)'};">
+        Signed in as ${escHtml(sess.user.email || sess.user.id)}<br>
+        Token ${mins < 0 ? 'EXPIRED ' + Math.abs(mins) + ' min ago' : 'valid for ' + mins + ' more min'}</div>`;
+    }
+  } catch(e) {
+    sessionLine = '<div style="font-size:12px;color:var(--red);">Session check timed out — tap "Fix stuck loading" in Settings.</div>';
+  }
+
   const failing = rows.filter(r => !r.ok);
   const steps = [...new Set(failing.map(r => r.fix))];
 
@@ -5492,6 +5544,11 @@ async function runDiagnostics() {
         ${failing.length ? failing.length + ' thing(s) need attention' : 'Everything is set up'}
       </div>
       ${failing.length ? `<div style="font-size:12px;margin-top:4px;color:var(--red-d);">Run: ${steps.join(', ')} SQL in Supabase, then reload.</div>` : ''}
+    </div>
+    <div style="background:var(--bg);border-radius:var(--rs);padding:11px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:4px;">SESSION</div>
+      ${sessionLine}
+      <button class="cbtn" style="margin-top:8px;padding:8px;font-size:12px;" onclick="resetSession()">Sign out &amp; clear this device</button>
     </div>
     ${rows.map(r => `
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--bd);">
