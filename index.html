@@ -362,6 +362,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 .auth-back i{font-size:19px}
 #s-auth{position:relative;justify-content:center;padding:24px}
 
+/* ===== LOCATION PICKER (added) ===== */
+.loc-gps-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--coral-l);color:var(--coral-m);border:none;border-radius:100px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px}
+.loc-gps-btn i{font-size:18px}
+.loc-gps-btn:disabled{opacity:.6;cursor:default}
+.loc-or{text-align:center;font-size:11px;color:var(--t3);margin-bottom:12px;position:relative}
+#loc-results{position:absolute;left:0;right:0;top:100%;z-index:40;background:var(--card);border:1px solid var(--bd);border-radius:10px;margin-top:4px;max-height:230px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+#loc-results:empty{display:none;border:none;box-shadow:none}
+.loc-res-item{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;cursor:pointer;border-bottom:.5px solid var(--bd)}
+.loc-res-item:last-child{border-bottom:none}
+.loc-res-item:hover{background:var(--bg)}
+.loc-res-item i{font-size:15px;color:var(--t3);margin-top:2px;flex-shrink:0}
+.loc-res-main{font-size:13px;font-weight:600;line-height:1.35}
+.loc-res-sub{font-size:11px;color:var(--t2);margin-top:1px}
+.loc-banner{margin:12px;background:var(--blue-l);border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:12px}
+.loc-banner i{font-size:26px;color:var(--blue-m);flex-shrink:0}
+.loc-banner-txt{flex:1;font-size:12.5px;color:var(--blue-m);line-height:1.45}
+.loc-banner button{background:var(--blue-m);color:#fff;border:none;border-radius:100px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.dist-badge{display:inline-flex;align-items:center;gap:3px;background:rgba(28,28,30,.72);color:#fff;border-radius:100px;padding:3px 9px;font-size:10.5px;font-weight:700}
+
 /* ===== SERVICE BADGES (added) ===== */
 .open-badge{background:var(--teal-l);color:var(--teal-d);font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px}
 .shut-badge{background:var(--gray-l);color:var(--t2);font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px}
@@ -772,7 +791,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   <div class="header">
     <div>
       <div class="hdr-logo"><i class="ti ti-planet"></i> PetXchange</div>
-      <div class="hdr-loc" id="hdr-city" onclick="openEditProfile()"><i class="ti ti-map-pin"></i> <span>Set your city</span></div>
+      <div class="hdr-loc" id="hdr-city" onclick="openLocationPicker('s-discover')"><i class="ti ti-map-pin"></i> <span>Set your location</span></div>
     </div>
     <div class="hdr-acts">
       <i class="ti ti-adjustments-horizontal" onclick="openModal('m-filters')"></i>
@@ -799,6 +818,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <span class="intent-chip" onclick="setIntent('adopt',this)"><i class="ti ti-home-heart" style="font-size:11px;"></i>Adopt out</span>
   </div>
 
+  <div id="disc-loc-banner"></div>
   <div class="swipe-area" id="swipe-area"></div>
 
   <div class="action-row">
@@ -937,7 +957,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 <!-- ===== SERVICES ===== -->
 <div id="s-services" class="screen" style="display:none;flex-direction:column;">
   <div class="header">
-    <div><div class="hdr-logo"><i class="ti ti-planet"></i> Services</div><div class="hdr-loc" id="svc-city"><i class="ti ti-map-pin"></i> Book or hire nearby</div></div>
+    <div><div class="hdr-logo"><i class="ti ti-planet"></i> Services</div><div class="hdr-loc" id="svc-city" onclick="openLocationPicker('s-services')" style="cursor:pointer;"><i class="ti ti-map-pin"></i> Book or hire nearby</div></div>
     <div class="hdr-acts"><i class="ti ti-adjustments-horizontal" onclick="openModal('m-svc-filters')"></i></div>
   </div>
   <div class="scroll-area">
@@ -948,7 +968,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 
     <div class="kind-toggle" id="svc-quick">
       <span class="chip on" onclick="quickFilter('all',this)">All</span>
-      <span class="chip" onclick="quickFilter('near',this)"><i class="ti ti-map-pin"></i>Near me</span>
+      <span class="chip" onclick="quickFilterNear(this)"><i class="ti ti-map-pin"></i>Near me</span>
       <span class="chip" onclick="quickFilter('open',this)"><i class="ti ti-clock"></i>Open now</span>
       <span class="chip" onclick="quickFilter('free',this)"><i class="ti ti-heart"></i>Free help</span>
       <span class="chip" onclick="quickFilter('individual',this)"><i class="ti ti-user-heart"></i>Individuals</span>
@@ -983,6 +1003,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div class="ad-scroll" id="ad-scroll"></div>
     </div>
 
+    <div id="svc-loc-banner"></div>
     <div class="svc-results-hdr">
       <h3 id="svc-list-title">Available near you</h3>
       <span class="cnt" id="svc-results-count"></span>
@@ -1643,11 +1664,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     </div>
     <div class="fgrp"><label class="flbl">Distance</label>
       <select class="fsel" id="f-radius">
-        <option value="area">My area only</option>
-        <option value="city" selected>My city</option>
+        <option value="near">Within 10 km</option>
+        <option value="city" selected>Your set radius</option>
         <option value="any">Anywhere</option>
       </select>
-      <div class="pf-hint">Exact km radius needs providers to share GPS — coming with map view.</div>
+      <div class="pf-hint" id="f-radius-hint">Set your location for real distance-based results.</div>
     </div>
     <div class="fgrp"><label class="flbl">Price</label>
       <select class="fsel" id="f-price">
@@ -1712,6 +1733,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     </div>
     <button class="sbtn" onclick="applyCrop()">Use this photo</button>
     <button class="cbtn" onclick="cancelCrop()">Cancel</button>
+  </div>
+</div>
+
+<!-- Location picker -->
+<div class="modal-bg" id="m-location">
+  <div class="modal-sheet"><div class="mhandle"></div><div class="mtitle">Set your location</div>
+    <p style="font-size:12px;color:var(--t2);margin:-8px 0 14px;line-height:1.5;">Used to show pets, posts and services near you. You control how far "near" means.</p>
+
+    <button class="loc-gps-btn" id="loc-gps-btn" onclick="useCurrentLocation()">
+      <i class="ti ti-current-location"></i>
+      <span>Use my current location</span>
+    </button>
+
+    <div class="loc-or">or search for an area</div>
+
+    <div class="fgrp" style="position:relative;">
+      <input class="finp" id="loc-search" type="text" placeholder="e.g. Vijayanagar, Mysuru" autocomplete="off"
+             oninput="searchLocation(this.value)">
+      <div id="loc-results"></div>
+    </div>
+
+    <div id="loc-selected" style="display:none;background:var(--teal-l);border-radius:var(--rs);padding:12px;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;color:var(--teal-d);margin-bottom:2px;"><i class="ti ti-map-pin-filled" style="font-size:12px;"></i> SELECTED</div>
+      <div style="font-size:13px;color:var(--teal-d);" id="loc-selected-text"></div>
+    </div>
+
+    <div class="fgrp">
+      <label class="flbl">Show me things within</label>
+      <select class="fsel" id="loc-radius">
+        <option value="5">5 km</option>
+        <option value="10">10 km</option>
+        <option value="25" selected>25 km</option>
+        <option value="50">50 km</option>
+        <option value="100">100 km</option>
+        <option value="99999">Any distance</option>
+      </select>
+    </div>
+
+    <button class="sbtn" id="loc-save-btn" onclick="saveLocation()" disabled>Save location</button>
+    <button class="cbtn" onclick="closeModal('m-location')">Cancel</button>
   </div>
 </div>
 
@@ -1803,7 +1864,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       </div>
       <div class="pf-hint" id="edit-handle-msg">People can tag you with this ID in posts.</div>
     </div>
-    <div class="fgrp"><label class="flbl">City</label><input class="finp" id="edit-city" type="text" placeholder="e.g. Mysuru, Bengaluru"></div>
+    <div class="fgrp">
+      <label class="flbl">Location</label>
+      <button type="button" class="hp-btn" style="background:var(--gray-l);color:var(--text);width:100%;justify-content:center;padding:11px;" onclick="closeModal('m-edit-profile');openLocationPicker('s-me')">
+        <i class="ti ti-map-pin" style="font-size:14px;"></i> <span id="edit-loc-label">Set your location</span>
+      </button>
+      <div class="pf-hint">Powers "near me" everywhere in the app.</div>
+    </div>
+    <div class="fgrp"><label class="flbl">City (shown on your profile)</label><input class="finp" id="edit-city" type="text" placeholder="e.g. Mysuru, Bengaluru"></div>
     <div class="fgrp"><label class="flbl">About you</label><textarea class="finp" id="edit-bio" rows="3" placeholder="Tell other pet parents about you and your pets…" style="resize:none;"></textarea></div>
     <button class="sbtn" onclick="saveProfile()">Save profile</button>
     <button class="cbtn" onclick="closeModal('m-edit-profile')">Cancel</button>
@@ -2704,6 +2772,8 @@ function openEditProfile() {
   if (n) n.value = p.full_name || '';
   if (c) c.value = p.city || '';
   if (b) b.value = p.bio || '';
+  const locLbl = document.getElementById('edit-loc-label');
+  if (locLbl) locLbl.textContent = hasLocation(p) ? (p.location_text || p.city || 'Location set') : 'Set your location';
   const h = document.getElementById('edit-handle');
   if (h) { h.value = p.handle || ''; h.dataset.valid = '1'; }
   openModal('m-edit-profile');
@@ -3332,10 +3402,44 @@ function mapPetToCard(p, owner){
 
 async function loadDiscoverPets(){
   try {
-    let q = sb.from('pets').select('*').eq('is_active', true);
-    if (currentUser) q = q.neq('owner_id', currentUser.id);
-    const { data: pets, error } = await sbq(() => q.order('created_at', { ascending: false }).limit(50), 'Discover');
+    let pets, error, distanceById = {};
+
+    if (hasLocation(currentProfile)) {
+      // Proximity mode: only pets whose owner is within your radius.
+      // You can only discover — and therefore only follow or message —
+      // people the database has confirmed are actually nearby.
+      const res = await sbq(() => sb.rpc('nearby_pets', {
+        p_lat: currentProfile.latitude,
+        p_lng: currentProfile.longitude,
+        p_radius_km: currentProfile.search_radius_km || 25,
+        p_species: null,
+        p_exclude: currentUser ? currentUser.id : null
+      }), 'Nearby pets');
+      pets = res.data; error = res.error;
+      if (!error) (pets || []).forEach(p => { distanceById[p.id] = p.distance_km; });
+
+      // A brand new area with nobody nearby yet shouldn't look broken —
+      // fall back to the wider list so Discover still has something to show.
+      if (!error && (!pets || !pets.length)) {
+        const fb = await sbq(() => {
+          let q = sb.from('pets').select('*').eq('is_active', true);
+          if (currentUser) q = q.neq('owner_id', currentUser.id);
+          return q.order('created_at', { ascending: false }).limit(50);
+        }, 'Discover fallback');
+        pets = fb.data; error = fb.error;
+        window.__discoverFellBack = true;
+      } else {
+        window.__discoverFellBack = false;
+      }
+    } else {
+      let q = sb.from('pets').select('*').eq('is_active', true);
+      if (currentUser) q = q.neq('owner_id', currentUser.id);
+      const res = await sbq(() => q.order('created_at', { ascending: false }).limit(50), 'Discover');
+      pets = res.data; error = res.error;
+    }
+
     if (error) throw error;
+
     let profilesById = {};
     if (pets && pets.length) {
       const ownerIds = [...new Set(pets.map(p=>p.owner_id))];
@@ -3346,7 +3450,11 @@ async function loadDiscoverPets(){
       (postsData||[]).forEach(row=>{ postCounts[row.author_id]=(postCounts[row.author_id]||0)+1; });
       ownerIds.forEach(id=>{ if(profilesById[id]) profilesById[id].postsCount = postCounts[id]||0; });
     }
-    discoverPets = (pets||[]).map(p => mapPetToCard(p, profilesById[p.owner_id]));
+    discoverPets = (pets||[]).map(p => {
+      const card = mapPetToCard(p, profilesById[p.owner_id]);
+      if (distanceById[p.id] != null) { card.distanceKm = distanceById[p.id]; card.dist = distanceById[p.id] + ' km away'; }
+      return card;
+    });
   } catch(e) {
     console.log('Discover load error:', e);
     discoverPets = [];
@@ -3357,6 +3465,14 @@ async function loadDiscoverPets(){
 // Like writeWithFallback, but returns the inserted rows so we can tell
 // a blocked write apart from a successful one.
 function buildCards(){
+  const bannerSlot = document.getElementById('disc-loc-banner');
+  if (bannerSlot) {
+    bannerSlot.innerHTML = locationBanner('discover') ||
+      (window.__discoverFellBack ? `<div class="loc-banner" style="background:var(--gray-l);">
+        <i class="ti ti-info-circle" style="color:var(--t2);"></i>
+        <div class="loc-banner-txt" style="color:var(--t2);">No one nearby yet within your radius — showing everyone instead.</div>
+      </div>` : '');
+  }
   const area=document.getElementById('swipe-area');
   area.innerHTML='';
   const list=discoverPets.filter(p=>p.species===activeSpecies&&(activeIntent==='all'||p.intent===activeIntent));
@@ -3375,6 +3491,7 @@ function buildCards(){
         ${p.reg?`<div class="pc-badge"><i class="ti ti-shield-check" style="font-size:11px;color:var(--teal);"></i>${p.reg}</div>`:''}
         ${p.photo?'<div class="pc-scrim"></div>':''}
         <div class="pc-dist"><i class="ti ti-map-pin" style="font-size:10px;"></i> ${p.dist}</div>
+        ${p.distanceKm != null ? `<div class="dist-badge" style="position:absolute;top:12px;left:12px;"><i class="ti ti-navigation" style="font-size:10px;"></i>${p.distanceKm} km</div>` : ''}
         <div class="pc-intent-tag" style="background:${ibg};color:${ifg};">${INTENT_LABELS[p.intent]}</div>
         <div class="pc-owner" id="ob${i}"><i class="ti ti-user" style="font-size:11px;"></i>Open profile</div>
         ${p.handle?`<div class="pc-dist" style="bottom:70px;">@${escHtml(p.handle)}</div>`:''}
@@ -3821,18 +3938,45 @@ let currentBiz = null;
 let myBusinesses = [];
 
 // ---------- customer-facing directory ----------
+let distanceByBizId = {};
+
 async function loadServices() {
   const list = document.getElementById('prov-list');
   if (!list) return;
   list.innerHTML = '<div style="text-align:center;padding:26px;color:var(--t3);font-size:13px;"><div class="loading-spin" style="margin:0 auto 8px;"></div>Finding providers…</div>';
+  distanceByBizId = {};
   try {
-    let q = sb.from('businesses')
-      .select('id, owner_id, name, handle, category, tagline, city, area, logo_url, price_from, price_unit, home_visit, emergency, is_verified, rating_avg, rating_count, booking_count, listing_kind, pricing_type, availability, open_time, close_time, open_days')
-      .eq('is_active', true);
-    if (currentProfile && currentProfile.city) q = q.order('city', { ascending: true });
-    const { data, error } = await sbq(() => q.order('rating_avg', { ascending: false }).limit(100), 'Services');
+    let data, error;
+
+    if (hasLocation(currentProfile)) {
+      const res = await sbq(() => sb.rpc('nearby_businesses', {
+        p_lat: currentProfile.latitude,
+        p_lng: currentProfile.longitude,
+        p_radius_km: currentProfile.search_radius_km || 25,
+        p_category: null
+      }), 'Nearby businesses');
+      data = res.data; error = res.error;
+      if (!error) (data || []).forEach(b => { distanceByBizId[b.id] = b.distance_km; });
+
+      // Nothing within range yet — widen automatically so the screen isn't empty.
+      if (!error && (!data || !data.length)) {
+        const fb = await sbq(() => sb.from('businesses')
+          .select('id, owner_id, name, handle, category, tagline, city, area, logo_url, price_from, price_unit, home_visit, emergency, is_verified, rating_avg, rating_count, booking_count, listing_kind, pricing_type, availability, open_time, close_time, open_days')
+          .eq('is_active', true).order('rating_avg', { ascending: false }).limit(100), 'Services fallback');
+        data = fb.data; error = fb.error;
+      }
+    } else {
+      let q = sb.from('businesses')
+        .select('id, owner_id, name, handle, category, tagline, city, area, logo_url, price_from, price_unit, home_visit, emergency, is_verified, rating_avg, rating_count, booking_count, listing_kind, pricing_type, availability, open_time, close_time, open_days')
+        .eq('is_active', true);
+      if (currentProfile && currentProfile.city) q = q.order('city', { ascending: true });
+      const res = await sbq(() => q.order('rating_avg', { ascending: false }).limit(100), 'Services');
+      data = res.data; error = res.error;
+    }
+
     if (error) throw error;
     allBusinesses = data || [];
+    renderLocBanner();
     renderServices();
     loadAds();
   } catch(e) {
@@ -3840,6 +3984,11 @@ async function loadServices() {
     list.innerHTML = `<div class="list-empty"><i class="ti ti-building-store"></i><p>Directory not set up yet</p><span>Run the step 7 SQL to enable business listings.</span>
       <button class="sbtn" style="max-width:220px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="runDiagnostics()">Check what's missing</button></div>`;
   }
+}
+
+function renderLocBanner() {
+  const slot = document.getElementById('svc-loc-banner');
+  if (slot) slot.innerHTML = locationBanner('services');
 }
 
 let svcFilters = {
@@ -3908,9 +4057,13 @@ function renderServices() {
   if (svcFilters.topRated) rows = rows.filter(b => Number(b.rating_avg) >= 4 && b.rating_count > 0);
   if (svcFilters.openNow) rows = rows.filter(b => isOpenNow(b) === true);
 
-  if (wantCity) {
+  if (svcFilters.radius === 'near' && hasLocation(currentProfile)) {
+    // Real proximity, not a city-string guess — a tight 10km ring.
+    rows = rows.filter(b => distanceByBizId[b.id] != null && distanceByBizId[b.id] <= 10);
+  } else if (wantCity) {
     rows = rows.filter(b => ((b.city || '') + ' ' + (b.area || '')).toLowerCase().includes(wantCity));
-  } else if (!term && svcFilters.radius !== 'any' && myCity) {
+  } else if (!term && svcFilters.radius !== 'any' && !hasLocation(currentProfile) && myCity) {
+    // No saved coordinates yet — fall back to matching the free-text city.
     const near = rows.filter(b => (b.city || '').toLowerCase().includes(myCity) || myCity.includes((b.city || '').toLowerCase()));
     if (near.length) rows = near;                      // don't strand the user with an empty list
   }
@@ -3921,6 +4074,12 @@ function renderServices() {
       .filter(x => x.score > 0)
       .sort((x, y) => y.score - x.score || (Number(y.b.rating_avg)||0) - (Number(x.b.rating_avg)||0))
       .map(x => x.b);
+  } else if (hasLocation(currentProfile) && Object.keys(distanceByBizId).length) {
+    rows.sort((a, b) => {
+      const da = distanceByBizId[a.id], db = distanceByBizId[b.id];
+      if (da != null && db != null && da !== db) return da - db;
+      return (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0);
+    });
   } else {
     rows.sort((a, b) => {
       const aNear = (a.city || '').toLowerCase() === myCity ? 1 : 0;
@@ -3963,7 +4122,8 @@ function renderServices() {
     const t = bizTheme(b.category);
     const open = isOpenNow(b);
     const free = b.pricing_type === 'free';
-    const bits = [t[0], b.area || b.city, b.home_visit ? 'Home visit' : null, b.availability || null].filter(Boolean);
+    const distKm = distanceByBizId[b.id];
+    const bits = [t[0], distKm != null ? distKm + ' km away' : (b.area || b.city), b.home_visit ? 'Home visit' : null, b.availability || null].filter(Boolean);
     return `<div class="prov-card" onclick="openBusiness('${b.id}','s-services')" data-type="${b.category}">
       <div class="prov-avi" style="background:${t[2]};overflow:hidden;">
         ${b.logo_url ? `<img src="${escAttr(b.logo_url)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : `<i class="ti ${t[1]}" style="color:${t[3]};"></i>`}
@@ -4121,6 +4281,16 @@ function closeCatMenuOnce(e) {
   if (menu && !menu.contains(e.target)) closeCatMenu();
 }
 
+function quickFilterNear(el) {
+  if (!hasLocation(currentProfile)) {
+    document.querySelectorAll('#svc-quick .chip').forEach(c => c.classList.remove('on'));
+    if (el) el.classList.add('on');
+    openLocationPicker('s-services');
+    return;
+  }
+  quickFilter('near', el);
+}
+
 function quickFilter(kind, el) {
   document.querySelectorAll('#svc-quick .chip').forEach(c => c.classList.remove('on'));
   if (el) el.classList.add('on');
@@ -4129,7 +4299,7 @@ function quickFilter(kind, el) {
   else if (kind === 'open') svcFilters.openNow = true;
   else if (kind === 'individual') svcFilters.kind = 'individual';
   else if (kind === 'rated') svcFilters.topRated = true;
-  else if (kind === 'near') svcFilters.radius = 'area';
+  else if (kind === 'near') svcFilters.radius = 'near';
   else if (kind === 'all') svcFilters.category = 'all';
   renderServices();
 }
@@ -5828,6 +5998,167 @@ async function registerInterest(feat) {
   } catch(e) { console.log('interest:', e); }
 }
 
+
+// ============================================================
+// LOCATION — search, GPS, and saving a place to your profile
+// Uses OpenStreetMap's free Nominatim service. No API key needed.
+// ============================================================
+let locSelected = null;   // { lat, lng, label, city }
+let locSearchTimer = null;
+let locOpenedFrom = null; // where to refresh after saving
+
+function openLocationPicker(from) {
+  if (!currentUser) { showToast('Sign in first'); showScreen('s-auth'); return; }
+  locOpenedFrom = from || currentScreen;
+  locSelected = null;
+  document.getElementById('loc-search').value = '';
+  document.getElementById('loc-results').innerHTML = '';
+  document.getElementById('loc-selected').style.display = 'none';
+  document.getElementById('loc-save-btn').disabled = true;
+  const radiusEl = document.getElementById('loc-radius');
+  if (radiusEl && currentProfile) radiusEl.value = currentProfile.search_radius_km || 25;
+  openModal('m-location');
+}
+
+function searchLocation(term) {
+  clearTimeout(locSearchTimer);
+  const box = document.getElementById('loc-results');
+  const q = (term || '').trim();
+  if (q.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="loc-res-item"><i class="ti ti-loader-2"></i><div class="loc-res-main" style="color:var(--t3);">Searching…</div></div>';
+  // Nominatim's usage policy asks for no more than ~1 request/second —
+  // this debounce keeps us well under that even while someone is typing.
+  locSearchTimer = setTimeout(() => runNominatimSearch(q), 500);
+}
+
+async function runNominatimSearch(q) {
+  const box = document.getElementById('loc-results');
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=' + encodeURIComponent(q + ', India');
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    if (!res.ok) throw new Error('Search failed');
+    const results = await res.json();
+    if (!results.length) {
+      box.innerHTML = '<div class="loc-res-item"><i class="ti ti-map-pin-off"></i><div class="loc-res-main" style="color:var(--t3);">No matches — try a nearby landmark or city</div></div>';
+      return;
+    }
+    box.innerHTML = results.map((r, i) => `
+      <div class="loc-res-item" onclick="pickLocationResult(${i})">
+        <i class="ti ti-map-pin"></i>
+        <div>
+          <div class="loc-res-main">${escHtml((r.display_name || '').split(',')[0])}</div>
+          <div class="loc-res-sub">${escHtml((r.display_name || '').split(',').slice(1, 4).join(',').trim())}</div>
+        </div>
+      </div>`).join('');
+    window.__locResults = results;
+  } catch (e) {
+    console.log('location search:', e);
+    box.innerHTML = '<div class="loc-res-item"><i class="ti ti-wifi-off"></i><div class="loc-res-main" style="color:var(--t3);">Could not search right now</div></div>';
+  }
+}
+
+function pickLocationResult(i) {
+  const r = (window.__locResults || [])[i];
+  if (!r) return;
+  const addr = r.address || {};
+  const city = addr.city || addr.town || addr.village || addr.county || addr.state_district || addr.state || '';
+  applyLocationSelection(parseFloat(r.lat), parseFloat(r.lon), r.display_name, city);
+  document.getElementById('loc-results').innerHTML = '';
+  document.getElementById('loc-search').value = (r.display_name || '').split(',')[0];
+}
+
+function applyLocationSelection(lat, lng, label, city) {
+  locSelected = { lat, lng, label, city };
+  const sel = document.getElementById('loc-selected');
+  sel.style.display = 'block';
+  document.getElementById('loc-selected-text').textContent = label;
+  document.getElementById('loc-save-btn').disabled = false;
+}
+
+function useCurrentLocation() {
+  if (!navigator.geolocation) { showToast('Your browser does not support GPS location'); return; }
+  const btn = document.getElementById('loc-gps-btn');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = 'Finding you…';
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${latitude}&lon=${longitude}`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const r = await res.json();
+        const addr = r.address || {};
+        const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
+        const label = r.display_name || (city || 'Current location');
+        applyLocationSelection(latitude, longitude, label, city);
+        document.getElementById('loc-search').value = '';
+      } catch (e) {
+        applyLocationSelection(latitude, longitude, 'Current location', '');
+      } finally {
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Use my current location';
+      }
+    },
+    (err) => {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Use my current location';
+      showToast(err.code === 1
+        ? 'Location permission denied — you can search for your area instead'
+        : 'Could not get your location — try searching instead');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+async function saveLocation() {
+  if (!locSelected || !currentUser) return;
+  const radius = parseInt(document.getElementById('loc-radius').value, 10) || 25;
+  const btn = document.getElementById('loc-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const patch = {
+      latitude: locSelected.lat,
+      longitude: locSelected.lng,
+      location_text: locSelected.label,
+      search_radius_km: radius
+    };
+    if (locSelected.city) patch.city = locSelected.city;   // keep the text city in sync
+    const { dropped } = await writeWithFallback(d => sb.from('profiles').update(d).eq('id', currentUser.id), patch);
+    currentProfile = { ...(currentProfile || {}), ...patch };
+    dropped.forEach(k => delete currentProfile[k]);
+    closeModal('m-location');
+    updateHeaderAvatar();
+    updateMyProfileScreen();
+    gapNotice(dropped);
+    if (!dropped.length) showToast('Location saved 📍');
+
+    // Refresh whatever screen sent us here, now with real proximity data
+    if (locOpenedFrom === 's-services') loadServices();
+    else loadDiscoverPets().then(buildCards);
+  } catch (e) {
+    console.log('saveLocation:', e);
+    showToast(e.message && e.message.includes('column') ? 'Run the location SQL to enable this' : 'Could not save location');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save location';
+  }
+}
+
+function hasLocation(profile) {
+  return !!(profile && profile.latitude != null && profile.longitude != null);
+}
+
+function locationBanner(context) {
+  if (hasLocation(currentProfile)) return '';
+  const copy = context === 'services'
+    ? "Set your location to see providers and prices sorted by distance."
+    : "Set your location to see pets and posts near you first.";
+  return `<div class="loc-banner">
+    <i class="ti ti-map-pin"></i>
+    <div class="loc-banner-txt">${copy}</div>
+    <button onclick="openLocationPicker('${context === 'services' ? 's-services' : 's-discover'}')">Set location</button>
+  </div>`;
+}
+
 // ============================================================
 // RESILIENT WRITES — degrade gracefully when the DB is behind
 // If a column doesn't exist yet, drop it and retry instead of
@@ -5903,6 +6234,8 @@ const DB_CHECKS = [
   { label:'Follows',                 test: () => sb.from('follows').select('id, target_type, target_id').limit(1), fix:'step 12' },
   { label:'Pet gallery',             test: () => sb.from('pet_media').select('id').limit(1), fix:'step 10' },
   { label:'Follow functions',        test: () => sb.rpc('profile_follow_counts', { p_user: currentUser ? currentUser.id : null }), fix:'step 12' },
+  { label:'Location columns',        test: () => sb.from('profiles').select('id, latitude, longitude, search_radius_km').limit(1), fix:'location SQL' },
+  { label:'Proximity functions',     test: () => sb.rpc('nearby_pets', { p_lat: 0, p_lng: 0, p_radius_km: 1, p_species: null, p_exclude: null }), fix:'location SQL' },
 ];
 
 async function runDiagnostics() {
