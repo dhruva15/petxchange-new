@@ -1864,14 +1864,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     let session = null;
     try {
-      const res = await withTimeout(sb.auth.getSession(), 5000, 'Session check');
+      const res = await withTimeout(sb.auth.getSession(), 9000, 'Session check');
       session = res && res.data ? res.data.session : null;
     } catch (e) {
-      // The stored token could not be restored. Leaving it in place means
-      // every future load hangs the same way, so clear it and start clean.
-      console.log('getSession failed:', e.message, '— clearing stored session');
-      window.__bootReason = 'Your saved sign-in could not be restored, so it was cleared.';
-      purgeStoredSession();
+      // A timeout means SLOW, not BROKEN. On a cold load supabase-js is
+      // still initialising and getSession() waits on that, which can easily
+      // exceed a few seconds on mobile data. Deleting a valid token here is
+      // what was logging people out on every refresh.
+      //
+      // So: don't touch storage. Fall through to the splash screen and let
+      // onAuthStateChange deliver the session when it arrives — it does,
+      // moments later, and routes straight into the app.
+      console.log('[boot] getSession slow (' + e.message + ') — waiting for auth to settle');
       session = null;
     }
 
@@ -1886,7 +1890,14 @@ window.addEventListener('DOMContentLoaded', async () => {
       buildCards();
       loadFeed();
     } else {
+      // No session yet. It may still be restoring, so give onAuthStateChange
+      // a moment before deciding the user is signed out.
       showScreen('s-splash');
+      setTimeout(() => {
+        if (!currentUser && currentScreen === 's-splash') {
+          console.log('[boot] no session restored — showing sign in');
+        }
+      }, 2500);
     }
   } catch(e) {
     console.error('Boot error:', e);
@@ -1914,17 +1925,22 @@ function scheduleTokenRefresh(session) {
 
   refreshTimer = setTimeout(async () => {
     const ok = await recoverSession();
-    if (!ok) {
-      console.log('[session] proactive refresh failed — signing out cleanly');
-      purgeStoredSession();
-      showToast('Your session expired. Please sign in again.');
-      showScreen('s-splash');
-    }
+    if (ok) return;
+
+    // recoverSession() returns false for a timeout as well as a rejection,
+    // and a timeout must never sign anyone out. If the token was genuinely
+    // revoked, recoverSession() has already cleared it and shown the splash.
+    // Otherwise just try again shortly — the token is still valid for a
+    // minute, and the network may simply have hiccupped.
+    console.log('[session] proactive refresh did not complete — retrying in 20s');
+    refreshTimer = setTimeout(() => recoverSession(), 20000);
   }, delay);
 }
 
-// Wipes the stored auth token. Used when a restored session is unusable —
-// without this, every reload repeats the same failure.
+// Wipes the stored auth token. Called only on a deliberate sign-out, or
+// when the server explicitly rejects a refresh token. Never on a timeout —
+// a slow response is not a broken session, and treating it as one is what
+// logged people out on every refresh.
 function purgeStoredSession() {
   try {
     const keys = [];
@@ -1995,11 +2011,16 @@ function withDeadline(promise, ms, label) {
 // Always resolves to { data, error } — never hangs, never throws.
 async function sbq(builder, label) {
   try {
-    return await withDeadline(builder(), QUERY_TIMEOUT_MS, label);
+    const res = await withDeadline(builder(), QUERY_TIMEOUT_MS, label);
+    noteQuerySuccess();
+    return res;
   } catch (e) {
     console.log('[sbq] ' + (label || 'query') + ' failed:', e.message);
 
     if (!/timed out/i.test(e.message || '')) return { data: null, error: e };
+
+    noteQueryTimeout(label || 'query');
+    if (breakerTripped) return { data: null, error: e };   // recovery already running
 
     // No point refreshing a session that isn't there — that path is what
     // turned a quick failure into a 30-second spinner.
@@ -2017,6 +2038,96 @@ async function sbq(builder, label) {
   }
 }
 
+
+// ============================================================
+// CIRCUIT BREAKER
+// When *every* query times out at once — profile, feed, services,
+// follows, pets, messages, and the auth refresh — the problem isn't any
+// one query. supabase-js funnels all requests through a single internal
+// auth queue; if that queue gets wedged (a failed sign-in leaving a
+// pending token promise is one way), every later call waits on it
+// forever and the whole app looks frozen.
+//
+// Retrying individual queries can't fix that, because they're all stuck
+// behind the same gate. The only reliable cure is to rebuild the client.
+// ============================================================
+let consecutiveTimeouts = 0;
+let breakerTripped = false;
+
+function noteQueryTimeout(label) {
+  consecutiveTimeouts++;
+  console.log('[breaker] timeout ' + consecutiveTimeouts + '/3 (' + label + ')');
+  if (consecutiveTimeouts >= 3 && !breakerTripped) tripBreaker();
+}
+
+function noteQuerySuccess() {
+  if (consecutiveTimeouts) console.log('[breaker] recovered');
+  consecutiveTimeouts = 0;
+}
+
+async function tripBreaker() {
+  breakerTripped = true;
+  console.log('[breaker] connection wedged — rebuilding the client');
+  showToast('Reconnecting…');
+
+  clearTimeout(refreshTimer);
+
+  // Drop every realtime channel; they hold sockets open against the old client.
+  try {
+    if (sb && sb.removeAllChannels) sb.removeAllChannels();
+  } catch (e) { console.log('[breaker] channel cleanup:', e); }
+  feedChannel = null; notifChannel = null; chatChannel = null;
+
+  // Rebuild the client from scratch. This discards the stuck auth queue
+  // while leaving the stored session alone, so you stay signed in.
+  try {
+    const passThroughLock = async (_n, _t, fn) => await fn();
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: { persistSession: true, autoRefreshToken: true,
+              detectSessionInUrl: true, lock: passThroughLock }
+    });
+  } catch (e) {
+    console.log('[breaker] rebuild failed:', e);
+  }
+
+  // Verify the fresh client can actually reach the server.
+  try {
+    const res = await withDeadline(sb.auth.getSession(), 6000, 'Breaker session check');
+    const sess = res && res.data ? res.data.session : null;
+    if (sess) {
+      currentUser = sess.user;
+      scheduleTokenRefresh(sess);
+      console.log('[breaker] client rebuilt, session intact');
+      showToast('Reconnected');
+      consecutiveTimeouts = 0;
+      breakerTripped = false;
+      refreshCurrentScreen();
+      return;
+    }
+  } catch (e) {
+    console.log('[breaker] fresh client still cannot reach the server');
+  }
+
+  // Still stuck. Keep the session — this is far more likely to be a bad
+  // connection than a bad token — and let the user retry.
+  consecutiveTimeouts = 0;
+  breakerTripped = false;
+  showToast('Still offline. Check your connection and pull to refresh.');
+}
+
+// Reload whatever the user is currently looking at.
+function refreshCurrentScreen() {
+  switch (currentScreen) {
+    case 's-feed':      loadFeed(); break;
+    case 's-discover':  loadDiscoverPets().then(buildCards); break;
+    case 's-services':  loadServices(); break;
+    case 's-inbox':     loadInbox(); break;
+    case 's-me':        loadMyPets().then(() => { updateMyProfileScreen(); loadMyStats(); }); break;
+    case 's-notifs':    loadNotifications(); break;
+    default: break;
+  }
+}
+
 // Refreshes the auth token, at most one refresh in flight at a time.
 async function recoverSession() {
   if (refreshingSession) return refreshingSession;
@@ -2031,18 +2142,20 @@ async function recoverSession() {
       } catch (e) { existing = null; }
 
       if (!existing) {
-        console.log('[session] nothing to refresh — signing out cleanly');
-        purgeStoredSession();
-        showScreen('s-splash');
+        console.log('[session] no session to refresh');
         return false;
       }
 
       const { data, error } = await withDeadline(sb.auth.refreshSession(), 6000, 'Session refresh');
       if (error || !data || !data.session) {
-        console.log('[session] refresh failed:', error && error.message);
-        // An invalid refresh token never recovers — clear it so the next
-        // load starts clean instead of repeating this.
-        if (error && /invalid|expired|not found/i.test(error.message || '')) purgeStoredSession();
+        console.log('[session] refresh rejected:', error && error.message);
+        // Only a definitive rejection from the server means the token is
+        // dead. Anything else (network blip, timeout) leaves it alone.
+        if (error && /invalid|revoked|not found|already used/i.test(error.message || '')) {
+          purgeStoredSession();
+          showToast('Session expired. Please sign in again.');
+          showScreen('s-splash');
+        }
         return false;
       }
       currentUser = data.session.user;
@@ -2050,10 +2163,9 @@ async function recoverSession() {
       console.log('[session] refreshed');
       return true;
     } catch (e) {
-      console.log('[session] refresh timed out — clearing stored login');
-      purgeStoredSession();
-      showToast('Session expired. Please sign in again.');
-      showScreen('s-splash');
+      // Timed out, not rejected. The token may still be fine — leave it be
+      // and try again on the next action rather than forcing a sign-out.
+      console.log('[session] refresh timed out — leaving stored login intact');
       return false;
     } finally {
       setTimeout(() => { refreshingSession = null; }, 1000);
@@ -2075,12 +2187,24 @@ document.addEventListener('visibilitychange', () => {
 if (sb) sb.auth.onAuthStateChange(async (event, session) => {
   console.log('[auth]', event, session ? '(session present)' : '(no session)');
 
-  if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+  if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session) {
+    const wasSignedOut = !currentUser;
     currentUser = session.user;
     scheduleTokenRefresh(session);
-    if (event === 'SIGNED_IN') {
+
+    if (event !== 'TOKEN_REFRESHED') {
       await loadProfile();
       updateHeaderAvatar();
+      refreshNotifCount();
+    }
+
+    // Boot may have shown the splash while auth was still settling.
+    // Now that the session is here, take the user where they belong.
+    if (wasSignedOut && (currentScreen === 's-splash' || currentScreen === 's-auth' || !currentScreen)) {
+      console.log('[auth] session arrived after boot — entering app');
+      showScreen('s-discover');
+      buildCards();
+      loadFeed();
     }
   } else if (event === 'SIGNED_OUT') {
     clearTimeout(refreshTimer);
@@ -2194,7 +2318,12 @@ async function doLogin() {
       throw err;
     }
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-    if (error) throw error;
+    if (error) {
+      // A rejected sign-in can leave a half-finished token exchange behind,
+      // which then blocks every later request. Clear it before surfacing.
+      try { await sb.auth.signOut({ scope: 'local' }); } catch (e2) {}
+      throw error;
+    }
     currentUser = data.user;
     await loadProfile();
     updateHeaderAvatar();
@@ -2268,6 +2397,7 @@ async function saveAccountPassword(){
 // PROFILE
 // ============================================================
 async function loadProfile() {
+  if (!currentUser) { console.log('[profile] no user yet — skipping'); return; }
   if (!currentUser) return;
   try {
     const { data } = await sbq(() => sb.from('profiles')
