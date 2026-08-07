@@ -1187,6 +1187,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div class="menu-item" id="menu-passports" style="display:none;" onclick="openPassport()"><i class="lead ti ti-clipboard-heart"></i><span>Health records</span><i class="arrow ti ti-chevron-right"></i></div>
       <div class="menu-item" onclick="openSettings()"><i class="lead ti ti-settings"></i><span>Settings &amp; privacy</span><i class="arrow ti ti-chevron-right"></i></div>
       <div class="menu-item" onclick="openSupport()"><i class="lead ti ti-help-circle"></i><span>Help &amp; support</span><i class="arrow ti ti-chevron-right"></i></div>
+      <div class="menu-item" onclick="if(confirm('Sign out and clear this device\'s saved login? Use this if the app gets stuck loading.'))resetSession()"><i class="lead ti ti-refresh-alert"></i><span>Fix stuck loading</span><i class="arrow ti ti-chevron-right"></i></div>
       <div class="menu-item" onclick="doLogout()" style="color:var(--red)"><i class="lead ti ti-logout" style="color:var(--red)"></i><span style="color:var(--red)">Sign out</span><i class="arrow ti ti-chevron-right"></i></div>
     </div>
   </div>
@@ -1818,7 +1819,23 @@ try {
   if (typeof supabase === 'undefined' || !supabase.createClient) {
     throw new Error('Supabase library did not load');
   }
-  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  // supabase-js coordinates token refresh across tabs using the browser's
+  // Web Locks API. If a lock is never released — which happens when a page
+  // is reloaded mid-refresh — the next getSession() waits on it forever and
+  // every query queues behind it. That is exactly the "works on first load,
+  // hangs after refresh" pattern. This app is single-tab in practice, so a
+  // pass-through lock is both safe and removes the deadlock entirely.
+  const passThroughLock = async (_name, _acquireTimeout, fn) => await fn();
+
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,   // keep: needed for email-confirmation links
+      flowType: 'implicit',
+      lock: passThroughLock
+    }
+  });
 } catch (err) {
   console.error('Supabase init failed:', err);
   if (window.__bootFail) {
@@ -1848,11 +1865,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     let session = null;
     try {
-      const res = await withTimeout(sb.auth.getSession(), 4000, 'Session check');
+      const res = await withTimeout(sb.auth.getSession(), 5000, 'Session check');
       session = res && res.data ? res.data.session : null;
     } catch (e) {
-      console.log('getSession:', e.message);
-      window.__bootReason = 'Sign-in check did not respond.';
+      // The stored token could not be restored. Leaving it in place means
+      // every future load hangs the same way, so clear it and start clean.
+      console.log('getSession failed:', e.message, '— clearing stored session');
+      window.__bootReason = 'Your saved sign-in could not be restored, so it was cleared.';
+      purgeStoredSession();
+      session = null;
     }
 
     // Show the app now. Profile and content load behind it.
@@ -1873,6 +1894,31 @@ window.addEventListener('DOMContentLoaded', async () => {
     showScreen('s-splash');
   }
 });
+
+// Wipes the stored auth token. Used when a restored session is unusable —
+// without this, every reload repeats the same failure.
+function purgeStoredSession() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('sb-') || k.includes('supabase.auth'))) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+    console.log('[session] cleared', keys.length, 'stored key(s)');
+  } catch (e) { console.log('[session] could not clear storage:', e); }
+  currentUser = null;
+  currentProfile = null;
+}
+
+// Available from the console and from Settings if anything ever wedges.
+function resetSession() {
+  purgeStoredSession();
+  try { sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  showToast('Signed out — reloading');
+  setTimeout(() => location.reload(), 600);
+}
+window.resetSession = resetSession;
 
 // Reports what is actually wrong, rather than making the user guess.
 async function probeBackend() {
@@ -1895,6 +1941,84 @@ async function probeBackend() {
     console.log('Backend probe failed:', e);
   }
 }
+
+
+// ============================================================
+// NETWORK RESILIENCE
+// A Supabase call can hang indefinitely when the access token has
+// gone stale — the request queues behind a token refresh that never
+// completes. An awaited hang freezes everything after it in that
+// function, which is why a screen can sit on "Loading…" forever with
+// no error. Nothing below is allowed to wait forever.
+// ============================================================
+const QUERY_TIMEOUT_MS = 12000;
+let refreshingSession = null;
+
+function withDeadline(promise, ms, label) {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error((label || 'Request') + ' timed out')), ms || QUERY_TIMEOUT_MS))
+  ]);
+}
+
+// Runs a Supabase query with a deadline. On timeout it refreshes the
+// session once and retries, which covers the stale-token case.
+// Always resolves to { data, error } — never hangs, never throws.
+async function sbq(builder, label) {
+  try {
+    return await withDeadline(builder(), QUERY_TIMEOUT_MS, label);
+  } catch (e) {
+    console.log('[sbq] ' + (label || 'query') + ' failed:', e.message);
+
+    if (!/timed out/i.test(e.message || '')) return { data: null, error: e };
+
+    const ok = await recoverSession();
+    if (!ok) return { data: null, error: e };
+
+    try {
+      return await withDeadline(builder(), QUERY_TIMEOUT_MS, label + ' (retry)');
+    } catch (e2) {
+      console.log('[sbq] retry failed:', e2.message);
+      return { data: null, error: e2 };
+    }
+  }
+}
+
+// Refreshes the auth token, at most one refresh in flight at a time.
+async function recoverSession() {
+  if (refreshingSession) return refreshingSession;
+  refreshingSession = (async () => {
+    try {
+      const { data, error } = await withDeadline(sb.auth.refreshSession(), 8000, 'Session refresh');
+      if (error || !data || !data.session) {
+        console.log('[session] refresh failed:', error && error.message);
+        // An invalid refresh token never recovers — clear it so the next
+        // load starts clean instead of repeating this.
+        if (error && /invalid|expired|not found/i.test(error.message || '')) purgeStoredSession();
+        return false;
+      }
+      currentUser = data.session.user;
+      console.log('[session] refreshed');
+      return true;
+    } catch (e) {
+      console.log('[session] refresh timed out');
+      return false;
+    } finally {
+      setTimeout(() => { refreshingSession = null; }, 1000);
+    }
+  })();
+  return refreshingSession;
+}
+
+// Coming back to the tab after a while is exactly when the token is
+// most likely to be stale. Check it before the user taps anything.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !currentUser || !sb) return;
+  withDeadline(sb.auth.getSession(), 5000, 'Session check')
+    .then(res => { if (!res || !res.data || !res.data.session) recoverSession(); })
+    .catch(() => recoverSession());
+});
 
 // Listen for auth changes
 if (sb) sb.auth.onAuthStateChange(async (event, session) => {
@@ -2089,8 +2213,8 @@ async function saveAccountPassword(){
 async function loadProfile() {
   if (!currentUser) return;
   try {
-    const { data } = await sb.from('profiles')
-      .select('*').eq('id', currentUser.id).maybeSingle();
+    const { data } = await sbq(() => sb.from('profiles')
+      .select('*').eq('id', currentUser.id).maybeSingle(), 'Profile');
     if (data) {
       currentProfile = data;
     } else {
@@ -2346,8 +2470,8 @@ async function loadFeed() {
   let lastErr = null;
   for (let i = 0; i < SELECTS.length; i++) {
     try {
-      const { data, error } = await sb.from('posts').select(SELECTS[i])
-        .order('created_at', { ascending: false }).limit(50);
+      const { data, error } = await sbq(() => sb.from('posts').select(SELECTS[i])
+        .order('created_at', { ascending: false }).limit(50), 'Feed');
       if (error) throw error;
       feedPosts = data || [];
       if (i > 0) console.log('Feed loaded with reduced fields (level ' + i + '). Run the latest SQL for full features.');
@@ -2821,14 +2945,14 @@ async function loadDiscoverPets(){
   try {
     let q = sb.from('pets').select('*').eq('is_active', true);
     if (currentUser) q = q.neq('owner_id', currentUser.id);
-    const { data: pets, error } = await q.order('created_at', { ascending: false }).limit(50);
+    const { data: pets, error } = await sbq(() => q.order('created_at', { ascending: false }).limit(50), 'Discover');
     if (error) throw error;
     let profilesById = {};
     if (pets && pets.length) {
       const ownerIds = [...new Set(pets.map(p=>p.owner_id))];
-      const { data: profs } = await sb.from('profiles').select('id, full_name, city, avatar_url, bio').in('id', ownerIds);
+      const { data: profs } = await sbq(() => sb.from('profiles').select('id, full_name, city, avatar_url, bio').in('id', ownerIds), 'Discover owners');
       (profs||[]).forEach(pr=>{ profilesById[pr.id]=pr; });
-      const { data: postsData } = await sb.from('posts').select('author_id').in('author_id', ownerIds);
+      const { data: postsData } = await sbq(() => sb.from('posts').select('author_id').in('author_id', ownerIds), 'Discover post counts');
       const postCounts = {};
       (postsData||[]).forEach(row=>{ postCounts[row.author_id]=(postCounts[row.author_id]||0)+1; });
       ownerIds.forEach(id=>{ if(profilesById[id]) profilesById[id].postsCount = postCounts[id]||0; });
@@ -3089,9 +3213,9 @@ async function loadMyPets(){
     return;
   }
   try {
-    const { data, error } = await sb.from('pets').select('*')
+    const { data, error } = await sbq(() => sb.from('pets').select('*')
       .eq('owner_id', currentUser.id)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true }), 'My pets');
     if (error) throw error;
     myPets = data || [];
     renderMyPets();
@@ -3317,7 +3441,7 @@ async function loadServices() {
       .select('id, owner_id, name, handle, category, tagline, city, area, logo_url, price_from, price_unit, home_visit, emergency, is_verified, rating_avg, rating_count, booking_count, listing_kind, pricing_type, availability, open_time, close_time, open_days')
       .eq('is_active', true);
     if (currentProfile && currentProfile.city) q = q.order('city', { ascending: true });
-    const { data, error } = await q.order('rating_avg', { ascending: false }).limit(100);
+    const { data, error } = await sbq(() => q.order('rating_avg', { ascending: false }).limit(100), 'Services');
     if (error) throw error;
     allBusinesses = data || [];
     renderServices();
@@ -3999,8 +4123,8 @@ const NOTIF_ICONS = {
 async function refreshNotifCount() {
   if (!currentUser) return;
   try {
-    const { count } = await sb.from('notifications')
-      .select('id', { count:'exact', head:true }).eq('user_id', currentUser.id).eq('is_read', false);
+    const { count } = await sbq(() => sb.from('notifications')
+      .select('id', { count:'exact', head:true }).eq('user_id', currentUser.id).eq('is_read', false), 'Bell count');
     const total = count || 0;
     ['bell-dot','bell-dot-2'].forEach(id => {
       const el = document.getElementById(id);
@@ -4033,9 +4157,9 @@ async function loadNotifications() {
   const wrap = document.getElementById('notif-list');
   wrap.innerHTML = '<div style="text-align:center;padding:26px;color:var(--t3);font-size:13px;">Loading…</div>';
   try {
-    const { data, error } = await sb.from('notifications')
+    const { data, error } = await sbq(() => sb.from('notifications')
       .select('*, profiles:actor_id ( full_name, avatar_url )')
-      .eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(60);
+      .eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(60), 'Notifications');
     if (error) throw error;
     // Collapse repeats so repeated likes or tags on the same post
     // read as a single line.
@@ -6309,8 +6433,9 @@ async function getMyFollowing() {
   // you follow directly.
   if (!currentUser) return [];
   try {
-    const { data: rows } = await sb.from('follows')
-      .select('target_type, target_id').eq('follower_id', currentUser.id).limit(60);
+    const { data: rows, error: fErr } = await sbq(() => sb.from('follows')
+      .select('target_type, target_id').eq('follower_id', currentUser.id).limit(60), 'Follows');
+    if (fErr) throw fErr;
     const list = rows || [];
     const userIds = list.filter(r => r.target_type === 'user').map(r => r.target_id);
     const petIds  = list.filter(r => r.target_type === 'pet').map(r => r.target_id);
@@ -6340,7 +6465,14 @@ async function loadInbox() {
   if (!currentUser) return;
   if (connWrap) connWrap.innerHTML = '<div style="padding:6px 2px;color:var(--t3);font-size:12px;">Loading…</div>';
 
-  myFollowing = await getMyFollowing();
+  try {
+    myFollowing = await withDeadline(getMyFollowing(), QUERY_TIMEOUT_MS, 'Following list');
+  } catch(e) {
+    console.log('following list:', e.message);
+    myFollowing = [];
+    if (connWrap) connWrap.innerHTML =
+      '<div style="padding:8px 4px 12px;color:var(--t3);font-size:12px;line-height:1.5;">Could not load — pull to refresh.</div>';
+  }
   if (connWrap) {
     connWrap.innerHTML = myFollowing.length
       ? myFollowing.map(c => {
@@ -6358,11 +6490,12 @@ async function loadInbox() {
   }
 
   try {
-    const { data: msgs } = await sb.from('messages')
+    const { data: msgs, error: msgErr } = await sbq(() => sb.from('messages')
       .select('id, sender_id, recipient_id, body, created_at, read_at')
       .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false })
-      .limit(300);
+      .limit(300), 'Messages');
+    if (msgErr) throw msgErr;
 
     const threads = {};
     (msgs || []).forEach(m => {
