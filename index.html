@@ -1979,7 +1979,7 @@ async function probeBackend() {
 // function, which is why a screen can sit on "Loading…" forever with
 // no error. Nothing below is allowed to wait forever.
 // ============================================================
-const QUERY_TIMEOUT_MS = 12000;
+const QUERY_TIMEOUT_MS = 8000;
 let refreshingSession = null;
 
 function withDeadline(promise, ms, label) {
@@ -2001,6 +2001,10 @@ async function sbq(builder, label) {
 
     if (!/timed out/i.test(e.message || '')) return { data: null, error: e };
 
+    // No point refreshing a session that isn't there — that path is what
+    // turned a quick failure into a 30-second spinner.
+    if (!currentUser) return { data: null, error: e };
+
     const ok = await recoverSession();
     if (!ok) return { data: null, error: e };
 
@@ -2018,7 +2022,22 @@ async function recoverSession() {
   if (refreshingSession) return refreshingSession;
   refreshingSession = (async () => {
     try {
-      const { data, error } = await withDeadline(sb.auth.refreshSession(), 8000, 'Session refresh');
+      // refreshSession() can hang indefinitely when there is no stored
+      // session to refresh. Check first, and bail out cleanly if not.
+      let existing = null;
+      try {
+        const cur = await withDeadline(sb.auth.getSession(), 4000, 'Session read');
+        existing = cur && cur.data ? cur.data.session : null;
+      } catch (e) { existing = null; }
+
+      if (!existing) {
+        console.log('[session] nothing to refresh — signing out cleanly');
+        purgeStoredSession();
+        showScreen('s-splash');
+        return false;
+      }
+
+      const { data, error } = await withDeadline(sb.auth.refreshSession(), 6000, 'Session refresh');
       if (error || !data || !data.session) {
         console.log('[session] refresh failed:', error && error.message);
         // An invalid refresh token never recovers — clear it so the next
@@ -2031,7 +2050,10 @@ async function recoverSession() {
       console.log('[session] refreshed');
       return true;
     } catch (e) {
-      console.log('[session] refresh timed out');
+      console.log('[session] refresh timed out — clearing stored login');
+      purgeStoredSession();
+      showToast('Session expired. Please sign in again.');
+      showScreen('s-splash');
       return false;
     } finally {
       setTimeout(() => { refreshingSession = null; }, 1000);
@@ -2495,7 +2517,7 @@ async function loadFeed() {
 
   // Richest query first; fall back as far as needed so the feed always renders.
   const SELECTS = [
-    'id, author_id, post_type, body, details, media_url, media_type, location_text, is_resolved, likes_count, comments_count, created_at, profiles ( full_name, avatar_url, city, handle ), post_tags ( pet_id, user_id, pets ( id, name, handle ), profiles ( id, full_name, handle ) )',
+    'id, author_id, post_type, body, details, media_url, media_type, location_text, is_resolved, likes_count, comments_count, created_at, profiles ( full_name, avatar_url, city, handle ), post_tags ( pet_id, user_id, pets ( id, name, handle ), profiles:user_id ( id, full_name, handle ) )',
     'id, author_id, post_type, body, details, media_url, media_type, location_text, is_resolved, likes_count, comments_count, created_at, profiles ( full_name, avatar_url, city )',
     'id, author_id, post_type, body, details, media_url, media_type, is_resolved, likes_count, comments_count, created_at',
     'id, author_id, post_type, body, likes_count, created_at',
@@ -2509,7 +2531,8 @@ async function loadFeed() {
         .order('created_at', { ascending: false }).limit(50), 'Feed');
       if (error) throw error;
       feedPosts = data || [];
-      if (i > 0) console.log('Feed loaded with reduced fields (level ' + i + '). Run the latest SQL for full features.');
+      if (i > 0) console.log('[feed] loaded at fallback level ' + i +
+        ' — the richer query failed. Last error:', lastErr && lastErr.message);
       renderFeed();
       loadFeedComments(feedPosts.map(p => p.id));
       loadMyLikes(feedPosts.map(p => p.id));
