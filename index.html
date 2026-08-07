@@ -167,6 +167,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 .svc-icon{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center}
 .svc-icon i{font-size:24px}
 .svc-lbl{font-size:10px;font-weight:600;color:var(--t2);text-align:center}
+
+/* Thin scrollable category bar with an overflow dropdown */
+.cat-bar-wrap{position:relative;display:flex;align-items:center;gap:6px;padding:0 12px 4px}
+.cat-bar{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;flex:1;padding:2px 0 6px;-webkit-overflow-scrolling:touch}
+.cat-bar::-webkit-scrollbar{display:none}
+.cat-chip{flex-shrink:0;display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--bd);border-radius:100px;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap}
+.cat-chip i{font-size:14px;color:var(--t2)}
+.cat-chip.on{background:var(--coral);border-color:var(--coral);color:#fff}
+.cat-chip.on i{color:#fff}
+.cat-more-btn{flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--card);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text)}
+.cat-more-btn i{font-size:16px}
+.cat-menu{display:none;position:absolute;top:100%;right:12px;z-index:30;background:var(--card);border:1px solid var(--bd);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);padding:6px;min-width:190px;max-height:320px;overflow-y:auto}
+.cat-menu.open{display:block}
+.cat-menu-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+.cat-menu-item:hover{background:var(--bg)}
+.cat-menu-item.on{background:var(--coral-l);color:var(--coral-m);font-weight:700}
+.cat-menu-item i{font-size:16px;color:var(--t2);width:18px;text-align:center}
+.cat-menu-item.on i{color:var(--coral-m)}
+
+/* Search results as their own labelled section */
+.svc-results-hdr{display:flex;align-items:baseline;justify-content:space-between;padding:14px 12px 6px}
+.svc-results-hdr h3{font-size:15px;font-weight:800}
+.svc-results-hdr .cnt{font-size:11.5px;color:var(--t2);font-weight:500}
+.svc-search-tag{display:inline-flex;align-items:center;gap:5px;background:var(--coral-l);color:var(--coral-m);border-radius:100px;padding:4px 11px;font-size:11.5px;font-weight:700;margin:0 12px 8px}
+.svc-search-tag i{font-size:12px;cursor:pointer}
 .svc-cs{position:absolute;top:-4px;right:2px;background:var(--amber);color:white;font-size:8px;font-weight:700;padding:2px 5px;border-radius:100px;white-space:nowrap}
 .cs-banner{margin:14px 12px 0;background:var(--amber-l);border:1px solid #FAC775;border-radius:var(--r);padding:14px}
 .cs-banner-t{font-size:13px;font-weight:700;color:var(--amber-d);display:flex;align-items:center;gap:7px;margin-bottom:6px}
@@ -931,15 +956,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     </div>
 
     <div class="sec-hdr"><h3>What do you need?</h3></div>
-    <div class="svc-grid" id="svc-cat-grid">
-      <div class="svc-item" onclick="filterProv('walker')"><div class="svc-icon" style="background:var(--amber-l);"><i class="ti ti-walk" style="color:var(--amber);"></i></div><span class="svc-lbl">Walking</span></div>
-      <div class="svc-item" onclick="filterProv('sitter')"><div class="svc-icon" style="background:var(--blue-l);"><i class="ti ti-home-heart" style="color:var(--blue);"></i></div><span class="svc-lbl">Caretaker</span></div>
-      <div class="svc-item" onclick="filterProv('boarding')"><div class="svc-icon" style="background:var(--teal-l);"><i class="ti ti-home" style="color:var(--teal);"></i></div><span class="svc-lbl">Boarding</span></div>
-      <div class="svc-item" onclick="filterProv('grooming')"><div class="svc-icon" style="background:var(--purple-l);"><i class="ti ti-scissors" style="color:var(--purple);"></i></div><span class="svc-lbl">Grooming</span></div>
-      <div class="svc-item" onclick="filterProv('trainer')"><div class="svc-icon" style="background:var(--green-l);"><i class="ti ti-school" style="color:var(--green);"></i></div><span class="svc-lbl">Training</span></div>
-      <div class="svc-item" onclick="filterProv('daycare')"><div class="svc-icon" style="background:var(--amber-l);"><i class="ti ti-sun" style="color:var(--amber);"></i></div><span class="svc-lbl">Daycare</span></div>
-      <div class="svc-item" onclick="filterProv('photography')"><div class="svc-icon" style="background:var(--purple-l);"><i class="ti ti-camera" style="color:var(--purple);"></i></div><span class="svc-lbl">Photography</span></div>
-      <div class="svc-item" onclick="filterProv('all')"><div class="svc-icon" style="background:var(--gray-l);"><i class="ti ti-dots" style="color:var(--t2);"></i></div><span class="svc-lbl">Everything</span></div>
+    <div class="cat-bar-wrap">
+      <div class="cat-bar" id="cat-bar">
+        <span class="cat-chip on" data-cat="all" onclick="filterProv('all',this)"><i class="ti ti-apps"></i>All</span>
+        <span class="cat-chip" data-cat="walker" onclick="filterProv('walker',this)"><i class="ti ti-walk"></i>Walking</span>
+        <span class="cat-chip" data-cat="sitter" onclick="filterProv('sitter',this)"><i class="ti ti-home-heart"></i>Caretaker</span>
+        <span class="cat-chip" data-cat="boarding" onclick="filterProv('boarding',this)"><i class="ti ti-home"></i>Boarding</span>
+        <span class="cat-chip" data-cat="grooming" onclick="filterProv('grooming',this)"><i class="ti ti-scissors"></i>Grooming</span>
+        <span class="cat-chip" data-cat="trainer" onclick="filterProv('trainer',this)"><i class="ti ti-school"></i>Training</span>
+        <span class="cat-chip" data-cat="daycare" onclick="filterProv('daycare',this)"><i class="ti ti-sun"></i>Daycare</span>
+        <span class="cat-chip" data-cat="photography" onclick="filterProv('photography',this)"><i class="ti ti-camera"></i>Photography</span>
+        <span class="cat-chip" data-cat="vet" onclick="filterProv('vet',this)"><i class="ti ti-stethoscope"></i>Vet</span>
+        <span class="cat-chip" data-cat="pharmacy" onclick="filterProv('pharmacy',this)"><i class="ti ti-pill"></i>Pharmacy</span>
+        <span class="cat-chip" data-cat="ambulance" onclick="filterProv('ambulance',this)"><i class="ti ti-urgent"></i>Ambulance</span>
+        <span class="cat-chip" data-cat="shelter" onclick="filterProv('shelter',this)"><i class="ti ti-building-community"></i>Shelter</span>
+        <span class="cat-chip" data-cat="breeder" onclick="filterProv('breeder',this)"><i class="ti ti-paw"></i>Breeder</span>
+        <span class="cat-chip" data-cat="food" onclick="filterProv('food',this)"><i class="ti ti-bowl"></i>Pet food</span>
+        <span class="cat-chip" data-cat="other" onclick="filterProv('other',this)"><i class="ti ti-dots"></i>Other</span>
+      </div>
+      <button class="cat-more-btn" onclick="toggleCatMenu(event)" aria-label="All categories"><i class="ti ti-chevron-down"></i></button>
+      <div class="cat-menu" id="cat-menu"></div>
     </div>
 
     <div id="ads-wrap" style="display:none;">
@@ -947,9 +983,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div class="ad-scroll" id="ad-scroll"></div>
     </div>
 
-    <div class="sec-hdr" style="margin-top:6px;"><h3 id="svc-list-title">Available near you</h3><a onclick="resetSvcFilters()">Reset</a></div>
+    <div class="svc-results-hdr">
+      <h3 id="svc-list-title">Available near you</h3>
+      <span class="cnt" id="svc-results-count"></span>
+    </div>
+    <div id="svc-search-tag-wrap"></div>
     <div id="svc-active-filters" style="padding:0 12px 6px;display:flex;gap:6px;flex-wrap:wrap;"></div>
     <div id="prov-list"></div>
+    <div style="padding:2px 12px 0;">
+      <a style="font-size:12px;color:var(--t2);cursor:pointer;" onclick="resetSvcFilters()">Reset all filters</a>
+    </div>
 
     <div class="tmp-card" style="margin:14px 12px 0;background:var(--purple-l);">
       <div class="tmp-t" style="color:var(--purple-m);"><i class="ti ti-hand-love-you" style="font-size:16px;"></i> Can't find someone?</div>
@@ -3832,11 +3875,30 @@ function priceOk(b) {
   return b.price_from !== null && b.price_from !== undefined && Number(b.price_from) <= Number(p);
 }
 
+function bizRelevance(b, term) {
+  // Higher = more relevant. Exact/near-start name matches rank above a
+  // hit buried in the description, so a search for "Pawfect" doesn't get
+  // outranked by a business whose tagline happens to mention the word.
+  const name = (b.name || '').toLowerCase();
+  const handle = (b.handle || '').toLowerCase();
+  let score = 0;
+  if (name === term) score = 100;
+  else if (name.startsWith(term)) score = 80;
+  else if (name.includes(term)) score = 60;
+  else if (handle.includes(term)) score = 55;
+  else if (bizTheme(b.category)[0].toLowerCase().includes(term)) score = 40;
+  else if ((b.tagline || '').toLowerCase().includes(term)) score = 25;
+  else if (((b.area||'') + ' ' + (b.city||'')).toLowerCase().includes(term)) score = 15;
+  else if ((b.availability || '').toLowerCase().includes(term)) score = 10;
+  return score;
+}
+
 function renderServices() {
   const list = document.getElementById('prov-list');
   if (!list) return;
   const myCity = (currentProfile && currentProfile.city || '').toLowerCase();
   const wantCity = (svcFilters.city || '').toLowerCase();
+  const term = bizSearchTerm.trim().toLowerCase();
   let rows = allBusinesses.slice();
 
   if (svcFilters.category !== 'all') rows = rows.filter(b => b.category === svcFilters.category);
@@ -3848,35 +3910,47 @@ function renderServices() {
 
   if (wantCity) {
     rows = rows.filter(b => ((b.city || '') + ' ' + (b.area || '')).toLowerCase().includes(wantCity));
-  } else if (svcFilters.radius !== 'any' && myCity) {
+  } else if (!term && svcFilters.radius !== 'any' && myCity) {
     const near = rows.filter(b => (b.city || '').toLowerCase().includes(myCity) || myCity.includes((b.city || '').toLowerCase()));
     if (near.length) rows = near;                      // don't strand the user with an empty list
   }
 
-  if (bizSearchTerm) {
-    const t = bizSearchTerm.toLowerCase();
-    rows = rows.filter(b => (b.name + ' ' + (b.tagline||'') + ' ' + (b.city||'') + ' ' + (b.area||'') + ' ' +
-                             (b.availability||'') + ' ' + bizTheme(b.category)[0]).toLowerCase().includes(t));
+  if (term) {
+    rows = rows
+      .map(b => ({ b, score: bizRelevance(b, term) }))
+      .filter(x => x.score > 0)
+      .sort((x, y) => y.score - x.score || (Number(y.b.rating_avg)||0) - (Number(x.b.rating_avg)||0))
+      .map(x => x.b);
+  } else {
+    rows.sort((a, b) => {
+      const aNear = (a.city || '').toLowerCase() === myCity ? 1 : 0;
+      const bNear = (b.city || '').toLowerCase() === myCity ? 1 : 0;
+      if (aNear !== bNear) return bNear - aNear;
+      return (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0);
+    });
   }
 
-  rows.sort((a, b) => {
-    const aNear = (a.city || '').toLowerCase() === myCity ? 1 : 0;
-    const bNear = (b.city || '').toLowerCase() === myCity ? 1 : 0;
-    if (aNear !== bNear) return bNear - aNear;
-    return (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0);
-  });
-
   const title = document.getElementById('svc-list-title');
-  if (title) title.textContent = svcFilters.category === 'all'
-    ? 'Available near you' : bizTheme(svcFilters.category)[0] + ' near you';
+  const countEl = document.getElementById('svc-results-count');
+  const tagWrap = document.getElementById('svc-search-tag-wrap');
+  const offerCount = (svcSearchExtra && bizSearchTerm) ? svcSearchExtra.length : 0;
+
+  if (title) title.textContent = term
+    ? 'Search results'
+    : (svcFilters.category === 'all' ? 'Available near you' : bizTheme(svcFilters.category)[0] + ' near you');
+  if (countEl) countEl.textContent = (rows.length + offerCount) ? (rows.length + offerCount) + ' found' : '';
+  if (tagWrap) {
+    tagWrap.innerHTML = bizSearchTerm
+      ? `<span class="svc-search-tag">"${escHtml(bizSearchTerm)}" <i class="ti ti-x" onclick="clearSvcSearch()"></i></span>` : '';
+  }
 
   renderActiveFilterChips();
 
-  if (!rows.length) {
+  if (!rows.length && !offerCount) {
     const anyFilter = svcFilters.category !== 'all' || svcFilters.kind !== 'all' || svcFilters.price !== 'any' ||
                       svcFilters.openNow || svcFilters.homeVisit || svcFilters.topRated || svcFilters.city || bizSearchTerm;
-    list.innerHTML = offerResultsHtml() + `<div class="list-empty"><i class="ti ti-map-search"></i>
-      <p>${anyFilter ? 'Nothing matches those filters' : 'No one listed here yet'}</p>
+    list.innerHTML = `<div class="list-empty"><i class="ti ti-map-search"></i>
+      <p>${term ? `No matches for "${escHtml(bizSearchTerm)}"` : anyFilter ? 'Nothing matches those filters' : 'No one listed here yet'}</p>
       <span>${anyFilter ? 'Try widening your search, or ask the community directly.' : 'Be the first to offer a service in your area.'}</span>
       <div style="display:flex;gap:8px;max-width:300px;margin:14px auto 0;">
         ${anyFilter ? '<button class="sbtn" style="margin:0;padding:10px;font-size:12.5px;background:var(--gray-l);color:var(--text);" onclick="resetSvcFilters()">Clear filters</button>' : ''}
@@ -3885,7 +3959,7 @@ function renderServices() {
     return;
   }
 
-  list.innerHTML = offerResultsHtml() + rows.map(b => {
+  list.innerHTML = rows.map(b => {
     const t = bizTheme(b.category);
     const open = isOpenNow(b);
     const free = b.pricing_type === 'free';
@@ -3912,7 +3986,7 @@ function renderServices() {
           : b.pricing_type === 'negotiable' ? '<div class="prov-price" style="font-size:11px;">Ask</div>' : ''}
       </div>
     </div>`;
-  }).join('');
+  }).join('') + offerResultsHtml();
 }
 
 function renderActiveFilterChips() {
@@ -3938,6 +4012,14 @@ function searchSvc(val) {
   renderServices();                       // instant filter on what's loaded
   if (bizSearchTerm.length < 2) { svcSearchExtra = []; return; }
   svcSearchTimer = setTimeout(() => searchServicesDeep(bizSearchTerm), 320);
+}
+
+function clearSvcSearch() {
+  bizSearchTerm = '';
+  svcSearchExtra = [];
+  const si = document.getElementById('svc-search');
+  if (si) { si.value = ''; si.focus(); }
+  renderServices();
 }
 
 // Local filtering only sees the first 100 listings, and never matches on the
@@ -3987,7 +4069,7 @@ async function searchServicesDeep(term) {
 // Community members offering help show up in Services search too
 function offerResultsHtml() {
   if (!svcSearchExtra.length || !bizSearchTerm) return '';
-  return `<div class="sec-hdr" style="margin-top:4px;"><h3>People offering help</h3></div>` +
+  return `<div class="sec-hdr" style="margin-top:10px;"><h3>People offering help</h3><span style="font-size:11.5px;color:var(--t2);font-weight:500;">${svcSearchExtra.length} found</span></div>` +
     svcSearchExtra.map(p => {
       const d = p.details || {};
       const pr = p.profiles || {};
@@ -4009,10 +4091,34 @@ function offerResultsHtml() {
     }).join('');
 }
 
-function filterProv(type) {
+function filterProv(type, el) {
   svcFilters.category = type;
+  document.querySelectorAll('.cat-chip').forEach(c => c.classList.toggle('on', c.dataset.cat === type));
+  document.querySelectorAll('.cat-menu-item').forEach(c => c.classList.toggle('on', c.dataset.cat === type));
+  if (el && el.classList.contains('cat-chip')) el.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+  closeCatMenu();
   renderServices();
   document.getElementById('svc-list-title')?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ---------- category overflow dropdown ----------
+function toggleCatMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('cat-menu');
+  if (menu.classList.contains('open')) { closeCatMenu(); return; }
+  menu.innerHTML = [...document.querySelectorAll('.cat-chip')].map(chip => {
+    const cat = chip.dataset.cat;
+    const icon = chip.querySelector('i').className;
+    const label = chip.textContent.trim();
+    return `<div class="cat-menu-item${cat === svcFilters.category ? ' on' : ''}" data-cat="${cat}" onclick="filterProv('${cat}')"><i class="${icon}"></i>${label}</div>`;
+  }).join('');
+  menu.classList.add('open');
+  document.addEventListener('click', closeCatMenuOnce, { once: true });
+}
+function closeCatMenu() { document.getElementById('cat-menu')?.classList.remove('open'); }
+function closeCatMenuOnce(e) {
+  const menu = document.getElementById('cat-menu');
+  if (menu && !menu.contains(e.target)) closeCatMenu();
 }
 
 function quickFilter(kind, el) {
