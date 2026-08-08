@@ -2532,20 +2532,35 @@ async function doSignup() {
     const city = signupLocation.city || '';
     const { data, error } = await sb.auth.signUp({
       email, password: pass,
-      options: { data: { full_name: name, city, role, handle } }
+      // Everything the account needs travels in here, not just as a client
+      // follow-up write. A server-side trigger reads this the moment the
+      // account row is created, which works whether or not a session
+      // exists yet — unlike a write from this browser tab.
+      options: { data: {
+        full_name: name, city, role, handle,
+        latitude: signupLocation.lat, longitude: signupLocation.lng,
+        location_text: signupLocation.label, search_radius_km: radius
+      } }
     });
     if (error) throw error;
 
-    if (data.user) {
-      // The signup trigger creates the row; fill in the rest, including
-      // the location captured above.
-      const profilePatch = {
-        id: data.user.id, full_name: name, handle, city: city || null, role,
-        latitude: signupLocation.lat, longitude: signupLocation.lng,
-        location_text: signupLocation.label, search_radius_km: radius
-      };
-      const { dropped } = await writeWithFallback(d => sb.from('profiles').upsert(d), profilePatch);
-      if (dropped.length) console.log('[signup] location columns missing — run the location SQL:', dropped);
+    // The trigger has already written the full profile — handle, location,
+    // everything — regardless of whether email confirmation is required.
+    // This is only a best-effort top-up for the immediate-session case, and
+    // its failure must never surface as the headline error to someone who
+    // just successfully created an account.
+    if (data.user && data.session) {
+      try {
+        const profilePatch = {
+          id: data.user.id, full_name: name, handle, city: city || null, role,
+          latitude: signupLocation.lat, longitude: signupLocation.lng,
+          location_text: signupLocation.label, search_radius_km: radius
+        };
+        const { dropped } = await writeWithFallback(d => sb.from('profiles').upsert(d), profilePatch);
+        if (dropped.length) console.log('[signup] some profile columns missing — run the location SQL:', dropped);
+      } catch (e2) {
+        console.log('[signup] profile top-up skipped (trigger already covered it):', e2.message);
+      }
     }
 
     // With email confirmation off, Supabase returns a session straight away.
@@ -2567,6 +2582,8 @@ async function doSignup() {
     const m = (e.message || '').toLowerCase();
     if (m.includes('already registered') || m.includes('already been registered')) {
       showAuthErr('That email already has an account. Try signing in instead.');
+    } else if (m.includes('row-level security') || m.includes('database error saving new user')) {
+      showAuthErr('Something went wrong creating your account. Please try again in a moment — if it keeps happening, contact petxchangeindia@gmail.com.');
     } else if (m.includes('duplicate') || m.includes('unique')) {
       showAuthErr('That user ID is taken. Please pick another.');
     } else {
