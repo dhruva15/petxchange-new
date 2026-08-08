@@ -363,6 +363,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 #s-auth{position:relative;justify-content:center;padding:24px}
 
 /* ===== LOCATION PICKER (added) ===== */
+.radius-pill{background:var(--gray-l);border:none;border-radius:100px;padding:3px 9px 3px 8px;font-size:11px;font-weight:700;color:var(--text);cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23636366' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;padding-right:20px}
 .loc-gps-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--coral-l);color:var(--coral-m);border:none;border-radius:100px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px}
 .loc-gps-btn i{font-size:18px}
 .loc-gps-btn:disabled{opacity:.6;cursor:default}
@@ -717,8 +718,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div class="fgrp"><label class="flbl">Password *</label>
         <input class="finp" type="password" id="s-pass" placeholder="Min 8 characters" autocomplete="new-password">
       </div>
-      <div class="fgrp"><label class="flbl">City</label>
-        <input class="finp" type="text" id="s-city" placeholder="e.g. Mysuru, Bangalore…">
+      <div class="fgrp">
+        <label class="flbl">Your location *</label>
+        <button type="button" class="loc-gps-btn" id="su-loc-gps-btn" style="padding:11px;font-size:13px;" onclick="suUseCurrentLocation()">
+          <i class="ti ti-current-location"></i><span>Use my current location</span>
+        </button>
+        <div class="loc-or">or search for your area</div>
+        <div style="position:relative;">
+          <input class="finp" id="su-loc-search" type="text" placeholder="e.g. Vijayanagar, Mysuru" autocomplete="off" oninput="suSearchLocation(this.value)">
+          <div id="su-loc-results"></div>
+        </div>
+        <div id="su-loc-selected" style="display:none;background:var(--teal-l);border-radius:var(--rs);padding:10px 12px;margin-top:8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--teal-d);"><i class="ti ti-map-pin-filled" style="font-size:11px;"></i> SELECTED</div>
+          <div style="font-size:12.5px;color:var(--teal-d);" id="su-loc-selected-text"></div>
+        </div>
+        <div class="pf-hint">Powers "near me" everywhere — Discover, Feed, Services. You can change it any time in Edit profile.</div>
+      </div>
+      <div class="fgrp"><label class="flbl">Show me things within</label>
+        <select class="fsel" id="su-loc-radius">
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+          <option value="25" selected>25 km</option>
+          <option value="50">50 km</option>
+          <option value="100">100 km</option>
+          <option value="99999">Any distance</option>
+        </select>
       </div>
       <div class="fgrp"><label class="flbl">I am a</label>
         <select class="fsel" id="signup-role">
@@ -791,7 +815,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   <div class="header">
     <div>
       <div class="hdr-logo"><i class="ti ti-planet"></i> PetXchange</div>
-      <div class="hdr-loc" id="hdr-city" onclick="openLocationPicker('s-discover')"><i class="ti ti-map-pin"></i> <span>Set your location</span></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <div class="hdr-loc" id="hdr-city" onclick="openLocationPicker('s-discover')"><i class="ti ti-map-pin"></i> <span>Set your location</span></div>
+        <select class="radius-pill" id="disc-radius-pill" onchange="quickSetRadius(this.value)" style="display:none;">
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+          <option value="25">25 km</option>
+          <option value="50">50 km</option>
+          <option value="100">100 km</option>
+          <option value="99999">Any distance</option>
+        </select>
+      </div>
     </div>
     <div class="hdr-acts">
       <i class="ti ti-adjustments-horizontal" onclick="openModal('m-filters')"></i>
@@ -934,7 +968,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <span class="chip" onclick="filterFeed('care_request',this)"><i class="ti ti-hand-love-you"></i>Care needed</span>
     <span class="chip" onclick="filterFeed('service_offer',this)"><i class="ti ti-hand-stop"></i>Available</span>
     <span class="chip" onclick="filterFeed('help',this)"><i class="ti ti-heart-rate-monitor"></i>Help</span>
-    <span class="chip" onclick="filterFeed('funny',this)"><i class="ti ti-mood-happy"></i>Moments</span>
     <span class="chip" onclick="filterFeed('grievance',this)"><i class="ti ti-flag"></i>Grievance</span>
   </div>
 
@@ -1204,6 +1237,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div style="flex:1;min-width:0;padding-bottom:6px;">
         <div class="biz-name" id="biz-name">—</div>
         <div class="biz-sub" id="biz-sub"></div>
+        <div class="biz-sub" id="biz-loc-line" style="display:none;margin-top:2px;"></div>
       </div>
     </div>
     <div style="padding:10px 16px 12px;">
@@ -1318,14 +1352,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
   <div class="modal-sheet"><div class="mhandle"></div><div class="mtitle" id="post-modal-title">Create a post</div>
     <div class="fgrp"><label class="flbl">Post type</label>
       <select class="fsel" id="post-type-sel" onchange="renderPostForm()">
-        <option value="general">General update</option>
+        <option value="general">Share an update</option>
         <option value="lost">Lost pet — urgent</option>
         <option value="found">Found a pet</option>
         <option value="adopt">Up for adoption</option>
         <option value="care_request">Need pet care / boarding</option>
         <option value="service_offer">I can help / offering a service</option>
         <option value="help">Help / question</option>
-        <option value="funny">Photo / video moment</option>
         <option value="grievance">Grievance / cruelty report</option>
       </select>
     </div>
@@ -1358,12 +1391,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
       <div id="ap-photo-prev"></div>
     </div>
     <div class="fgrp"><label class="flbl">Pet name</label><input class="finp" id="ap-name" type="text" placeholder="e.g. Bruno" oninput="suggestPetHandle()"></div>
-    <div class="fgrp"><label class="flbl">Pet ID (unique handle)</label>
+    <div class="fgrp"><label class="flbl">Pet ID (unique handle) *</label>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:15px;font-weight:700;color:var(--t3);">@</span>
         <input class="finp" id="ap-handle" type="text" placeholder="bruno_mysuru" style="flex:1;" oninput="checkHandle('ap-handle','pets','ap-handle-msg')">
       </div>
-      <div class="pf-hint" id="ap-handle-msg">3–20 characters: letters, numbers, underscore. This is how people tag your pet.</div>
+      <div class="pf-hint" id="ap-handle-msg">Required. 3–20 characters: letters, numbers, underscore. This is how people find and tag your pet.</div>
     </div>
     <div class="fgrp"><label class="flbl">Species</label>
       <select class="fsel" id="ap-species">
@@ -1514,6 +1547,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     <div class="fgrp"><label class="flbl">City *</label><input class="finp" id="bz-city" type="text" placeholder="e.g. Mysuru"></div>
     <div class="fgrp"><label class="flbl">Area / locality</label><input class="finp" id="bz-area" type="text" placeholder="e.g. Vijayanagar 2nd Stage"></div>
     <div class="fgrp"><label class="flbl">Full address</label><textarea class="finp" id="bz-address" rows="2" placeholder="Shop number, street, landmark" style="resize:none;"></textarea></div>
+    <div class="fgrp">
+      <label style="display:flex;align-items:center;gap:9px;font-size:13px;padding:7px 0;cursor:pointer;"><input type="checkbox" id="bz-show-address" style="width:17px;height:17px;accent-color:var(--coral);"> Show my full address publicly</label>
+      <div class="pf-hint">Off by default. Customers can still see your area and get directions either way.</div>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Pin your location on the map *</label>
+      <button type="button" class="loc-gps-btn" id="bz-loc-btn" style="background:var(--gray-l);color:var(--text);padding:11px;font-size:13px;" onclick="openLocationPicker('business')">
+        <i class="ti ti-map-pin"></i><span id="bz-loc-label">Set business location</span>
+      </button>
+      <div class="pf-hint">This is what puts you in "near me" searches — without it your listing won't show up in proximity results.</div>
+    </div>
     <div class="fgrp"><label class="flbl" id="bz-phone-lbl">Phone</label><input class="finp" id="bz-phone" type="tel" placeholder="10-digit number"><div class="pf-hint">Optional — people can always message you in the app instead.</div></div>
     <div class="fgrp"><label class="flbl">WhatsApp (if different)</label><input class="finp" id="bz-whatsapp" type="tel" placeholder="Optional"></div>
     <div class="fgrp"><label class="flbl">Website / Instagram</label><input class="finp" id="bz-website" type="text" placeholder="Optional"></div>
@@ -2407,6 +2451,7 @@ function authSwitch(mode) {
   document.getElementById('auth-err').classList.remove('show');
   document.getElementById('auth-ok').classList.remove('show');
   hideResendConfirm();
+  if (mode === 'signup') resetSignupLocation();
   document.getElementById('tab-login').classList.remove('on');
   document.getElementById('tab-signup').classList.remove('on');
   const sub = document.getElementById('auth-sub');
@@ -2446,8 +2491,8 @@ async function doSignup() {
   const name  = document.getElementById('s-name').value.trim();
   const email = document.getElementById('s-email').value.trim();
   const pass  = document.getElementById('s-pass').value;
-  const city  = document.getElementById('s-city').value.trim();
   const role  = document.getElementById('signup-role').value;
+  const radius = parseInt(document.getElementById('su-loc-radius').value, 10) || 25;
   document.getElementById('auth-err').classList.remove('show');
 
   if (!name)  { showAuthErr('Please enter your name.'); return; }
@@ -2465,6 +2510,14 @@ async function doSignup() {
     return;
   }
 
+  // Location is required so Discover, Feed and Services can show what's
+  // actually nearby from the first moment someone uses the app.
+  if (!signupLocation) {
+    showAuthErr('Please set your location — tap "Use my current location" or search for your area above.');
+    document.getElementById('su-loc-search').focus();
+    return;
+  }
+
   const btn = document.getElementById('btn-signup');
   btn.disabled = true; btn.textContent = 'Creating account…';
   try {
@@ -2476,6 +2529,7 @@ async function doSignup() {
       return;
     }
 
+    const city = signupLocation.city || '';
     const { data, error } = await sb.auth.signUp({
       email, password: pass,
       options: { data: { full_name: name, city, role, handle } }
@@ -2483,10 +2537,15 @@ async function doSignup() {
     if (error) throw error;
 
     if (data.user) {
-      // The signup trigger creates the row; fill in the rest.
-      await sb.from('profiles').upsert({
-        id: data.user.id, full_name: name, handle, city: city || null, role
-      });
+      // The signup trigger creates the row; fill in the rest, including
+      // the location captured above.
+      const profilePatch = {
+        id: data.user.id, full_name: name, handle, city: city || null, role,
+        latitude: signupLocation.lat, longitude: signupLocation.lng,
+        location_text: signupLocation.label, search_radius_km: radius
+      };
+      const { dropped } = await writeWithFallback(d => sb.from('profiles').upsert(d), profilePatch);
+      if (dropped.length) console.log('[signup] location columns missing — run the location SQL:', dropped);
     }
 
     // With email confirmation off, Supabase returns a session straight away.
@@ -2704,6 +2763,23 @@ function updateHeaderAvatar() {
   const svcCity = document.getElementById('svc-city');
   if (svcCity) svcCity.innerHTML = '<i class="ti ti-map-pin"></i> ' +
     (currentProfile && currentProfile.city ? escHtml(currentProfile.city) + ' · book or hire' : 'Book or hire nearby');
+
+  const discCity = document.getElementById('hdr-city');
+  const radiusPill = document.getElementById('disc-radius-pill');
+  if (discCity) {
+    const span = discCity.querySelector('span');
+    if (span) span.textContent = hasLocation(currentProfile)
+      ? (currentProfile.location_text ? currentProfile.location_text.split(',')[0] : (currentProfile.city || 'Location set'))
+      : 'Set your location';
+  }
+  if (radiusPill) {
+    if (hasLocation(currentProfile)) {
+      radiusPill.style.display = 'inline-block';
+      radiusPill.value = String(currentProfile.search_radius_km || 25);
+    } else {
+      radiusPill.style.display = 'none';
+    }
+  }
 }
 
 async function saveProfile() {
@@ -2886,7 +2962,7 @@ const POST_TYPES = {
   },
   funny: { label:'Photo / video moment', banner:'MOMENT', icon:'ti-mood-happy', card:'post', bodyFirst:true,
     bodyLabel:'Add a caption', bodyReq:false, fields:[] },
-  general: { label:'General update', banner:'UPDATE', icon:'ti-news', card:'post', bodyFirst:true,
+  general: { label:'Update', banner:'UPDATE', icon:'ti-news', card:'post', bodyFirst:true,
     bodyLabel:"What's happening?", bodyReq:true, fields:[] }
 };
 
@@ -3610,7 +3686,12 @@ async function addPet(){
   if (!name || !species) { showToast('Pet name and species are required'); return; }
   let apHandle;
   try { apHandle = readHandle('ap-handle'); }
-  catch(err) { showToast(err.message); return; }
+  catch(err) { showToast(err.message); document.getElementById('ap-handle').focus(); return; }
+  if (!apHandle) {
+    showToast('Please choose a pet ID — it\'s how people find and tag your pet.');
+    document.getElementById('ap-handle').focus();
+    return;
+  }
   const btn = document.getElementById('btn-add-pet');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
@@ -4401,8 +4482,25 @@ async function openBusiness(id, back) {
       (b.handle ? ` · <span class="handle">@${escHtml(b.handle)}</span>` : '');
     document.getElementById('biz-desc').textContent = b.description || b.tagline || '';
 
+    const hasPin = b.latitude != null && b.longitude != null;
+    const dKm = distanceByBizId[b.id];
+    const locLine = document.getElementById('biz-loc-line');
+    if (locLine) {
+      const bits = [];
+      if (dKm != null) bits.push(`<i class="ti ti-navigation" style="font-size:11px;"></i>${dKm} km away`);
+      else if (b.area || b.city) bits.push(`<i class="ti ti-map-pin" style="font-size:11px;"></i>${escHtml(b.area || b.city)}`);
+      const dirLink = hasPin
+        ? `<a href="https://www.google.com/maps/search/?api=1&query=${b.latitude},${b.longitude}" target="_blank" rel="noopener" style="color:var(--coral-m);font-weight:700;">Get directions</a>`
+        : '';
+      locLine.innerHTML = (bits.length || dirLink)
+        ? bits.join(' · ') + (bits.length && dirLink ? ' · ' : '') + dirLink
+        : '';
+      locLine.style.display = (bits.length || dirLink) ? 'block' : 'none';
+    }
+
     const badges = [];
-    if (b.rating_count) badges.push(`<span class="pill" style="background:var(--amber-l);color:var(--amber-m);font-size:11px;"><i class="ti ti-star-filled" style="font-size:10px;"></i>${Number(b.rating_avg).toFixed(1)} (${b.rating_count})</span>`);
+    if (b.rating_count) badges.push(`<span class="pill" style="background:var(--amber-l);color:var(--amber-m);font-size:11px;cursor:pointer;" onclick="${mine ? `bizTab('reviews',document.querySelectorAll('.own-tab')[2])` : `openReview('${b.id}')`}"><i class="ti ti-star-filled" style="font-size:10px;"></i>${Number(b.rating_avg).toFixed(1)} (${b.rating_count})</span>`);
+    else if (!mine) badges.push(`<span class="pill" style="background:var(--gray-l);color:var(--t2);font-size:11px;cursor:pointer;" onclick="openReview('${b.id}')"><i class="ti ti-star" style="font-size:10px;"></i>Be the first to rate</span>`);
     if (b.is_verified) badges.push('<span class="pill" style="background:var(--teal-l);color:var(--teal-m);font-size:11px;"><i class="ti ti-rosette-discount-check" style="font-size:10px;"></i>Verified</span>');
     if (b.home_visit) badges.push('<span class="pill" style="background:var(--blue-l);color:var(--blue-m);font-size:11px;"><i class="ti ti-home" style="font-size:10px;"></i>Home visits</span>');
     if (b.emergency) badges.push('<span class="pill" style="background:var(--red-l);color:var(--red);font-size:11px;"><i class="ti ti-urgent" style="font-size:10px;"></i>Emergency 24×7</span>');
@@ -4425,7 +4523,8 @@ async function openBusiness(id, back) {
          <button class="biz-cbtn" id="biz-follow-btn" style="background:var(--gray-l);color:var(--text);" onclick="toggleFollow('business','${b.id}','biz-follow-btn')"><i class="ti ti-plus"></i> Follow</button>
          ${b.phone ? `<button class="biz-cbtn" style="background:var(--teal-l);color:var(--teal-m);" onclick="window.location.href='tel:${escAttr(b.phone)}'"><i class="ti ti-phone"></i> Call</button>` : ''}
          ${(b.whatsapp || b.phone) ? `<button class="biz-cbtn" style="background:var(--green-l);color:var(--green);" onclick="window.open('https://wa.me/91${escAttr((b.whatsapp||b.phone).replace(/\D/g,'').slice(-10))}','_blank')"><i class="ti ti-brand-whatsapp"></i> Chat</button>` : ''}
-         <button class="biz-cbtn" style="background:var(--gray-l);color:var(--text);" onclick="openChatWith('${b.owner_id}')"><i class="ti ti-message-circle"></i></button>`;
+         <button class="biz-cbtn" style="background:var(--gray-l);color:var(--text);" onclick="openChatWith('${b.owner_id}')"><i class="ti ti-message-circle"></i></button>
+         <button class="biz-cbtn" style="background:var(--amber-l);color:var(--amber-m);" onclick="openReview('${b.id}')"><i class="ti ti-star"></i></button>`;
 
     document.getElementById('biz-about').innerHTML = `
       <div style="background:var(--card);border-radius:var(--r);padding:14px;">
@@ -5543,6 +5642,9 @@ function openAddBusiness() {
   document.querySelectorAll('#bz-species .chip').forEach(c => c.classList.remove('on'));
   bizImages = { logo:null, cover:null };
   clearBizImage('logo'); clearBizImage('cover');
+  document.getElementById('bz-show-address').checked = false;
+  pendingBizLocation = null;
+  document.getElementById('bz-loc-label').textContent = 'Set business location';
   document.getElementById('btn-del-biz').style.display = 'none';
   openModal('m-business');
 }
@@ -5564,6 +5666,11 @@ function openEditBusiness(id) {
   document.getElementById('bz-city').value = b.city || '';
   document.getElementById('bz-area').value = b.area || '';
   document.getElementById('bz-address').value = b.address || '';
+  document.getElementById('bz-show-address').checked = !!b.is_address_public;
+  pendingBizLocation = (b.latitude != null && b.longitude != null)
+    ? { lat: b.latitude, lng: b.longitude, label: b.location_text || (b.area || b.city || 'Pinned location') }
+    : null;
+  document.getElementById('bz-loc-label').textContent = pendingBizLocation ? pendingBizLocation.label : 'Set business location';
   document.getElementById('bz-phone').value = b.phone || '';
   document.getElementById('bz-whatsapp').value = b.whatsapp || '';
   document.getElementById('bz-website').value = b.website || '';
@@ -5599,6 +5706,7 @@ async function saveBusiness() {
   const phone = document.getElementById('bz-phone').value.trim();
   if (!name) { showToast('Give your listing a name'); return; }
   if (!city) { showToast('City is required so people can find you'); return; }
+  if (!pendingBizLocation) { showToast('Please pin your business location — it powers "near me" search'); return; }
   let handle;
   try { handle = readHandle('bz-handle'); } catch(err) { showToast(err.message); return; }
 
@@ -5626,9 +5734,13 @@ async function saveBusiness() {
     home_visit: document.getElementById('bz-home').checked,
     emergency: document.getElementById('bz-emergency').checked,
     is_active: document.getElementById('bz-active').checked,
+    is_address_public: document.getElementById('bz-show-address').checked,
     species_served: species,
     logo_url: bizImages.logo,
-    cover_url: bizImages.cover
+    cover_url: bizImages.cover,
+    latitude: pendingBizLocation.lat,
+    longitude: pendingBizLocation.lng,
+    location_text: pendingBizLocation.label
   };
 
   const btn = document.getElementById('btn-save-biz');
@@ -5884,7 +5996,9 @@ async function openBooking(bizId, svcId) {
   document.getElementById('bk-svc').value = svcId || '';
   document.getElementById('bk-notes').value = '';
   const d = new Date(Date.now() + 864e5);
-  document.getElementById('bk-date').value = d.toISOString().slice(0, 10);
+  const dateInput = document.getElementById('bk-date');
+  dateInput.value = d.toISOString().slice(0, 10);
+  dateInput.min = new Date().toISOString().slice(0, 10);
   fillBookingPets();
   const biz = currentBiz && currentBiz.id === bizId ? currentBiz : allBusinesses.find(b => b.id === bizId);
   document.getElementById('bk-title').textContent = 'Book ' + (biz ? biz.name : 'service');
@@ -5908,7 +6022,14 @@ async function submitBooking() {
   const btn = document.getElementById('btn-book');
   btn.disabled = true; btn.textContent = 'Requesting…';
   try {
-    const biz = currentBiz && currentBiz.id === bizId ? currentBiz : allBusinesses.find(b => b.id === bizId);
+    let biz = (currentBiz && currentBiz.id === bizId) ? currentBiz : allBusinesses.find(b => b.id === bizId);
+    if (!biz) {
+      // Not in either cache — fetch directly so the booking always reaches
+      // the right provider instead of silently failing to notify anyone.
+      const { data } = await sb.from('businesses').select('id, owner_id, name, price_from').eq('id', bizId).maybeSingle();
+      biz = data;
+    }
+    if (!biz) { showToast('Could not find this business — try again'); btn.disabled = false; btn.textContent = 'Request booking'; return; }
     let svc = null;
     if (svcId) {
       const { data } = await sb.from('business_services').select('name, price').eq('id', svcId).maybeSingle();
@@ -5930,8 +6051,9 @@ async function submitBooking() {
     const { dropped } = await writeWithFallback(d => sb.from('bookings').insert(d), payload);
     gapNotice(dropped);
     closeModal('m-booking');
-    showToast('Booking requested — the provider will confirm');
+    if (!dropped.length) showToast('Booking requested — see it under My bookings');
     loadMyStats();
+    openMyBookings();   // show it immediately so the request visibly went through
   } catch(e) {
     console.log('submitBooking:', e);
     showToast(handleErrorText(e, 'Could not request booking'));
@@ -6007,6 +6129,98 @@ let locSelected = null;   // { lat, lng, label, city }
 let locSearchTimer = null;
 let locOpenedFrom = null; // where to refresh after saving
 
+// ---------- location capture embedded in the signup form ----------
+let signupLocation = null;
+let suSearchTimer = null;
+
+function suSearchLocation(val) {
+  clearTimeout(suSearchTimer);
+  const box = document.getElementById('su-loc-results');
+  const q = (val || '').trim();
+  if (q.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="loc-res-item"><i class="ti ti-loader-2"></i><div class="loc-res-main" style="color:var(--t3);">Searching…</div></div>';
+  suSearchTimer = setTimeout(() => suRunSearch(q), 500);
+}
+
+async function suRunSearch(q) {
+  const box = document.getElementById('su-loc-results');
+  try {
+    const results = await nominatimGeocode(q);
+    if (!results.length) {
+      box.innerHTML = '<div class="loc-res-item"><i class="ti ti-map-pin-off"></i><div class="loc-res-main" style="color:var(--t3);">No matches — try a nearby landmark or city</div></div>';
+      return;
+    }
+    window.__suLocResults = results;
+    box.innerHTML = results.map((r, i) => `
+      <div class="loc-res-item" onclick="suPickLocation(${i})">
+        <i class="ti ti-map-pin"></i>
+        <div>
+          <div class="loc-res-main">${escHtml((r.display_name || '').split(',')[0])}</div>
+          <div class="loc-res-sub">${escHtml((r.display_name || '').split(',').slice(1, 4).join(',').trim())}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    box.innerHTML = '<div class="loc-res-item"><i class="ti ti-wifi-off"></i><div class="loc-res-main" style="color:var(--t3);">Could not search right now</div></div>';
+  }
+}
+
+function suPickLocation(i) {
+  const r = (window.__suLocResults || [])[i];
+  if (!r) return;
+  signupLocation = { lat: parseFloat(r.lat), lng: parseFloat(r.lon), label: r.display_name, city: extractCity(r.address) };
+  document.getElementById('su-loc-selected').style.display = 'block';
+  document.getElementById('su-loc-selected-text').textContent = r.display_name;
+  document.getElementById('su-loc-search').value = (r.display_name || '').split(',')[0];
+  document.getElementById('su-loc-results').innerHTML = '';
+}
+
+function suUseCurrentLocation() {
+  if (!navigator.geolocation) { showToast('Your browser does not support GPS location'); return; }
+  const btn = document.getElementById('su-loc-gps-btn');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = 'Finding you…';
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      try {
+        const r = await nominatimReverse(latitude, longitude);
+        const city = extractCity(r.address);
+        const label = r.display_name || city || 'Current location';
+        signupLocation = { lat: latitude, lng: longitude, label, city };
+        document.getElementById('su-loc-selected').style.display = 'block';
+        document.getElementById('su-loc-selected-text').textContent = label;
+      } catch (e) {
+        signupLocation = { lat: latitude, lng: longitude, label: 'Current location', city: '' };
+        document.getElementById('su-loc-selected').style.display = 'block';
+        document.getElementById('su-loc-selected-text').textContent = 'Current location';
+      } finally {
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Use my current location';
+      }
+    },
+    (err) => {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Use my current location';
+      showToast(err.code === 1
+        ? 'Location permission denied — you can search for your area instead'
+        : 'Could not get your location — try searching instead');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function resetSignupLocation() {
+  signupLocation = null;
+  const search = document.getElementById('su-loc-search');
+  const results = document.getElementById('su-loc-results');
+  const sel = document.getElementById('su-loc-selected');
+  if (search) search.value = '';
+  if (results) results.innerHTML = '';
+  if (sel) sel.style.display = 'none';
+}
+
+let pendingBizLocation = undefined;   // undefined = unchanged, object = new pick
+
 function openLocationPicker(from) {
   if (!currentUser) { showToast('Sign in first'); showScreen('s-auth'); return; }
   locOpenedFrom = from || currentScreen;
@@ -6015,8 +6229,19 @@ function openLocationPicker(from) {
   document.getElementById('loc-results').innerHTML = '';
   document.getElementById('loc-selected').style.display = 'none';
   document.getElementById('loc-save-btn').disabled = true;
-  const radiusEl = document.getElementById('loc-radius');
-  if (radiusEl && currentProfile) radiusEl.value = currentProfile.search_radius_km || 25;
+
+  const modalTitle = document.querySelector('#m-location .mtitle');
+  const radiusRow = document.getElementById('loc-radius')?.closest('.fgrp');
+
+  if (from === 'business') {
+    if (modalTitle) modalTitle.textContent = "Set your business's location";
+    if (radiusRow) radiusRow.style.display = 'none';
+  } else {
+    if (modalTitle) modalTitle.textContent = 'Set your location';
+    if (radiusRow) radiusRow.style.display = 'block';
+    const radiusEl = document.getElementById('loc-radius');
+    if (radiusEl && currentProfile) radiusEl.value = currentProfile.search_radius_km || 25;
+  }
   openModal('m-location');
 }
 
@@ -6031,13 +6256,27 @@ function searchLocation(term) {
   locSearchTimer = setTimeout(() => runNominatimSearch(q), 500);
 }
 
+async function nominatimGeocode(q) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=' + encodeURIComponent(q + ', India');
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  if (!res.ok) throw new Error('Search failed');
+  return await res.json();
+}
+
+async function nominatimReverse(lat, lng) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  return await res.json();
+}
+
+function extractCity(addr) {
+  return (addr && (addr.city || addr.town || addr.village || addr.county || addr.state_district || addr.state)) || '';
+}
+
 async function runNominatimSearch(q) {
   const box = document.getElementById('loc-results');
   try {
-    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=' + encodeURIComponent(q + ', India');
-    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-    if (!res.ok) throw new Error('Search failed');
-    const results = await res.json();
+    const results = await nominatimGeocode(q);
     if (!results.length) {
       box.innerHTML = '<div class="loc-res-item"><i class="ti ti-map-pin-off"></i><div class="loc-res-main" style="color:var(--t3);">No matches — try a nearby landmark or city</div></div>';
       return;
@@ -6060,8 +6299,7 @@ async function runNominatimSearch(q) {
 function pickLocationResult(i) {
   const r = (window.__locResults || [])[i];
   if (!r) return;
-  const addr = r.address || {};
-  const city = addr.city || addr.town || addr.village || addr.county || addr.state_district || addr.state || '';
+  const city = extractCity(r.address);
   applyLocationSelection(parseFloat(r.lat), parseFloat(r.lon), r.display_name, city);
   document.getElementById('loc-results').innerHTML = '';
   document.getElementById('loc-search').value = (r.display_name || '').split(',')[0];
@@ -6084,11 +6322,8 @@ function useCurrentLocation() {
     async (pos) => {
       const { latitude, longitude } = pos.coords;
       try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${latitude}&lon=${longitude}`;
-        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-        const r = await res.json();
-        const addr = r.address || {};
-        const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
+        const r = await nominatimReverse(latitude, longitude);
+        const city = extractCity(r.address);
         const label = r.display_name || (city || 'Current location');
         applyLocationSelection(latitude, longitude, label, city);
         document.getElementById('loc-search').value = '';
@@ -6111,7 +6346,21 @@ function useCurrentLocation() {
 }
 
 async function saveLocation() {
-  if (!locSelected || !currentUser) return;
+  if (!locSelected) return;
+
+  // Business mode: just hold the pick in memory. It's written to the
+  // database together with the rest of the business form on Save, exactly
+  // like the logo and cover photo already work.
+  if (locOpenedFrom === 'business') {
+    pendingBizLocation = { lat: locSelected.lat, lng: locSelected.lng, label: locSelected.label };
+    const lbl = document.getElementById('bz-loc-label');
+    if (lbl) lbl.textContent = locSelected.label;
+    closeModal('m-location');
+    showToast('Location pinned — tap Save business to confirm');
+    return;
+  }
+
+  if (!currentUser) return;
   const radius = parseInt(document.getElementById('loc-radius').value, 10) || 25;
   const btn = document.getElementById('loc-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -6140,6 +6389,26 @@ async function saveLocation() {
     showToast(e.message && e.message.includes('column') ? 'Run the location SQL to enable this' : 'Could not save location');
   } finally {
     btn.disabled = false; btn.textContent = 'Save location';
+  }
+}
+
+// One-tap radius change that doesn't require re-picking your location.
+async function quickSetRadius(val) {
+  const radius = parseInt(val, 10) || 25;
+  if (!currentUser || !hasLocation(currentProfile)) return;
+  try {
+    const { dropped } = await writeWithFallback(
+      d => sb.from('profiles').update(d).eq('id', currentUser.id),
+      { search_radius_km: radius }
+    );
+    currentProfile.search_radius_km = radius;
+    gapNotice(dropped);
+    showToast(radius >= 99999 ? 'Showing any distance' : 'Showing within ' + radius + ' km');
+    if (currentScreen === 's-discover') loadDiscoverPets().then(buildCards);
+    else if (currentScreen === 's-services') loadServices();
+  } catch (e) {
+    console.log('quickSetRadius:', e);
+    showToast('Could not update radius');
   }
 }
 
@@ -6236,6 +6505,7 @@ const DB_CHECKS = [
   { label:'Follow functions',        test: () => sb.rpc('profile_follow_counts', { p_user: currentUser ? currentUser.id : null }), fix:'step 12' },
   { label:'Location columns',        test: () => sb.from('profiles').select('id, latitude, longitude, search_radius_km').limit(1), fix:'location SQL' },
   { label:'Proximity functions',     test: () => sb.rpc('nearby_pets', { p_lat: 0, p_lng: 0, p_radius_km: 1, p_species: null, p_exclude: null }), fix:'location SQL' },
+  { label:'Business location fields', test: () => sb.from('businesses').select('id, latitude, longitude, location_text, is_address_public').limit(1), fix:'launch polish SQL' },
 ];
 
 async function runDiagnostics() {
@@ -6327,7 +6597,7 @@ function openAddPet() {
     if (el) { el.value = ''; delete el.dataset.touched; delete el.dataset.valid; }
   });
   const msg = document.getElementById('ap-handle-msg');
-  if (msg) { msg.textContent = '3–20 characters: letters, numbers, underscore. This is how people tag your pet.'; msg.style.color = 'var(--t3)'; }
+  if (msg) { msg.textContent = 'Required. 3–20 characters: letters, numbers, underscore. This is how people find and tag your pet.'; msg.style.color = 'var(--t3)'; }
   clearPetPhoto('ap');
   openModal('m-add-pet');
 }
