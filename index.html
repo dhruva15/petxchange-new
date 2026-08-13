@@ -2,8 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>PetXchange — All Pets. All Needs. One Exchange.</title>
+<meta name="description" content="India's pet community. Find playdates and mates for your pet, get help when you need a sitter or walker, report lost pets, and book trusted local services.">
+<meta name="theme-color" content="#D85A30">
+
+<!-- Link previews (WhatsApp, Instagram DMs, Twitter, etc.) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="PetXchange — All Pets. All Needs. One Exchange.">
+<meta property="og:description" content="India's pet community. Playdates, lost & found, adoption, care and trusted local services — all in one place.">
+<meta property="og:site_name" content="PetXchange">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PetXchange — All Pets. All Needs. One Exchange.">
+<meta name="twitter:description" content="India's pet community. Playdates, lost & found, adoption, care and trusted local services.">
+
+<!-- Add to home screen, so it opens like an app on a phone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PetXchange">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23D85A30'/%3E%3Ctext x='90' y='122' font-size='96' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-weight='bold'%3EP%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23D85A30'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-weight='bold'%3EP%3C/text%3E%3C/svg%3E">
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/dist/tabler-icons.min.css">
 <style>
 :root {
@@ -648,8 +667,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
     if (!window.__bootDone) {
       window.__bootFail('Taking longer than usual',
         (window.__bootReason || 'PetXchange could not reach its servers.') +
-        '<br><br>Common causes: the Supabase project is paused (free projects sleep after inactivity), ' +
-        'or a browser shield is blocking the connection.', true);
+        '<br><br>This is usually a network issue, or a browser shield or ad-blocker ' +
+        'blocking the connection. Try again, or open the site in another browser.', true);
     }
   }, 8000);
 
@@ -3044,8 +3063,8 @@ async function loadFeed() {
   list.innerHTML = `<div class="list-empty">
       <i class="ti ti-database-off"></i>
       <p>Feed can't load yet</p>
-      <span>${why ? 'Your database is missing <b>' + escHtml(why) + '</b>.' : 'Could not reach the database.'}<br>Run the latest SQL step in Supabase, then reload.</span>
-      <button class="sbtn" style="max-width:220px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="runDiagnostics()">Check what's missing</button>
+      <span>We're having trouble loading the feed right now.<br>Check your connection and pull down to refresh.</span>
+      <button class="sbtn" style="max-width:220px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="location.reload()">Try again</button>
     </div>`;
 }
 
@@ -3058,6 +3077,8 @@ function renderFeed() {
       ? '<button class="sbtn" style="max-width:250px;margin:14px auto 0;padding:10px;font-size:13px;background:var(--purple-m);" onclick="postCareRequest()">Post a care request</button>'
       : feedFilter === 'service_offer'
       ? '<button class="sbtn" style="max-width:250px;margin:14px auto 0;padding:10px;font-size:13px;background:var(--green);" onclick="postAvailability()">Offer your help</button>'
+      : feedFilter === 'all'
+      ? '<button class="sbtn" style="max-width:250px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="openPostComposer()"><i class="ti ti-plus" style="vertical-align:-2px;"></i> Write the first post</button>'
       : '';
     list.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>' +
       (feedFilter==='all' ? 'No posts yet' : 'Nothing here yet') + '</p><span>' +
@@ -3422,7 +3443,7 @@ async function submitPost() {
     loadMyStats();
   } catch(e) {
     console.log('submitPost error:', e);
-    showToast(e.message && e.message.includes('column') ? 'Run the latest SQL — a column is missing' : 'Could not save. Try again.');
+    showToast(e.message && e.message.includes('column') ? 'Something went wrong saving that. Please try again.' : 'Could not save. Try again.');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = editingPostId ? 'Save changes' : 'Post'; }
   }
@@ -3570,7 +3591,25 @@ function buildCards(){
   area.innerHTML='';
   const list=discoverPets.filter(p=>p.species===activeSpecies&&(activeIntent==='all'||p.intent===activeIntent));
   if(!list.length){
-    area.innerHTML='<div class="empty-state"><i class="ti ti-planet"></i><p>No pets here yet</p><span>Try a different filter or check back soon</span></div>';
+    // An empty Discover is the most likely first thing a new user sees.
+    // Give them something to do rather than a dead end.
+    const noPetsOfMine = !myPets || !myPets.length;
+    const filtered = activeIntent !== 'all';
+    area.innerHTML = `<div class="empty-state" style="padding:26px 22px;">
+      <i class="ti ti-planet"></i>
+      <p>${filtered ? 'Nothing matches that filter' : 'No pets here yet'}</p>
+      <span style="line-height:1.55;">${
+        filtered ? 'Try "All" or a different species.'
+        : noPetsOfMine ? "PetXchange is new in your area. Add your pet so others can find you — you'll be one of the first here."
+        : 'Try a wider radius, a different species, or check back soon.'
+      }</span>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:270px;margin:16px auto 0;">
+        ${filtered ? `<button class="sbtn" style="margin:0;padding:11px;font-size:13px;" onclick="setIntent('all')">Show all pets</button>` : ''}
+        ${!filtered && noPetsOfMine ? `<button class="sbtn" style="margin:0;padding:11px;font-size:13px;" onclick="openAddPet()"><i class="ti ti-plus" style="vertical-align:-2px;"></i> Add my pet</button>` : ''}
+        ${!filtered && !noPetsOfMine && hasLocation(currentProfile) ? `<button class="sbtn" style="margin:0;padding:11px;font-size:13px;background:var(--gray-l);color:var(--text);" onclick="quickSetRadius(99999)">Search any distance</button>` : ''}
+        ${!filtered ? `<button class="sbtn" style="margin:0;padding:11px;font-size:13px;background:var(--purple-m);" onclick="switchTab('feed')">Browse the community feed</button>` : ''}
+      </div>
+    </div>`;
     return;
   }
   list.slice(0,3).reverse().forEach((p,i,arr)=>{
@@ -3658,7 +3697,7 @@ async function swipeRight(){
       loadMyStats();
     } catch(e) {
       console.log('follow from discover:', e);
-      showToast('Run the step 12 SQL to enable following');
+      showToast('Could not follow right now — please try again');
     }
   }
   setTimeout(() => { card.remove(); if (!document.querySelector('#swipe-area .pet-card')) buildCards(); }, 300);
@@ -3680,7 +3719,13 @@ function filterSpecies(sp,el){
 }
 function setIntent(intent,el){
   document.querySelectorAll('.intent-chip').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');activeIntent=intent;buildCards();
+  // May be called without an element (e.g. from the empty-state buttons),
+  // so fall back to finding the matching chip rather than throwing.
+  const chip = el || [...document.querySelectorAll('.intent-chip')]
+    .find(c => (c.getAttribute('onclick')||'').includes("'" + intent + "'"));
+  if (chip) chip.classList.add('on');
+  activeIntent = intent;
+  buildCards();
 }
 
 // ============================================================
@@ -4079,8 +4124,8 @@ async function loadServices() {
     loadAds();
   } catch(e) {
     console.log('loadServices:', e);
-    list.innerHTML = `<div class="list-empty"><i class="ti ti-building-store"></i><p>Directory not set up yet</p><span>Run the step 7 SQL to enable business listings.</span>
-      <button class="sbtn" style="max-width:220px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="runDiagnostics()">Check what's missing</button></div>`;
+    list.innerHTML = `<div class="list-empty"><i class="ti ti-building-store"></i><p>Could not load services</p><span>We're having trouble loading services. Pull down to refresh.</span>
+      <button class="sbtn" style="max-width:220px;margin:14px auto 0;padding:10px;font-size:13px;" onclick="location.reload()">Try again</button></div>`;
   }
 }
 
@@ -4595,7 +4640,7 @@ async function loadBizServices(bizId, mine) {
       : `<div class="list-empty"><i class="ti ti-list"></i><p>No services listed yet</p><span>${mine ? 'Add your first service with a price so customers can book.' : 'Message the provider to ask what they offer.'}</span></div>`;
     wrap.innerHTML = html;
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-list"></i><p>Services not set up yet</p><span>Run the step 7 SQL.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-list"></i><p>Services not set up yet</p><span>Could not load this right now. Pull down to refresh.</span></div>';
   }
 }
 
@@ -4931,7 +4976,7 @@ async function loadNotifications() {
     }).join('');
   } catch(e) {
     console.log('notifications:', e);
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-bell"></i><p>Notifications not set up yet</p><span>Run the step 10 SQL to enable them.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-bell"></i><p>Notifications not set up yet</p><span>Could not load notifications. Pull down to refresh.</span></div>';
   }
 }
 
@@ -5143,7 +5188,7 @@ async function doSearch(q) {
       <span>Check the spelling, or try a shorter word.</span></div>`;
   } catch(e) {
     console.log('search:', e);
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-search-off"></i><p>Search failed</p><span>Run the step 10 SQL if this is a fresh setup.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-search-off"></i><p>Search failed</p><span>Search is unavailable right now. Please try again.</span></div>';
   }
 }
 
@@ -5194,7 +5239,7 @@ async function loadPetGallery(petId, mine) {
 
     wrap.innerHTML = html;
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-photo"></i><p>Gallery needs the step 10 SQL</p></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-photo"></i><p>Could not load the gallery</p></div>';
   }
 }
 
@@ -5276,7 +5321,7 @@ async function viewResponses(postId) {
       </div>`;
     }).join('');
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty" style="padding:26px;"><i class="ti ti-users"></i><p>Responses not set up yet</p><span>Run the step 8 SQL.</span></div>';
+    wrap.innerHTML = '<div class="list-empty" style="padding:26px;"><i class="ti ti-users"></i><p>Responses not set up yet</p><span>Could not load this right now. Pull down to refresh.</span></div>';
   }
 }
 
@@ -5332,7 +5377,7 @@ async function loadCommunityRequests(targetId, limit) {
     }).join('');
     return rows.length;
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty" style="padding:22px;"><i class="ti ti-hand-love-you"></i><p>Requests need the step 8 SQL</p></div>';
+    wrap.innerHTML = '<div class="list-empty" style="padding:22px;"><i class="ti ti-hand-love-you"></i><p>Could not load requests</p></div>';
     return 0;
   }
 }
@@ -6111,7 +6156,7 @@ async function openMyBookings() {
       </div>`;
     }).join('');
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty" style="padding:26px;"><i class="ti ti-calendar"></i><p>Bookings not set up yet</p><span>Run the step 7 SQL.</span></div>';
+    wrap.innerHTML = '<div class="list-empty" style="padding:26px;"><i class="ti ti-calendar"></i><p>Bookings not set up yet</p><span>Could not load this right now. Pull down to refresh.</span></div>';
   }
 }
 
@@ -6403,7 +6448,7 @@ async function saveLocation() {
     else loadDiscoverPets().then(buildCards);
   } catch (e) {
     console.log('saveLocation:', e);
-    showToast(e.message && e.message.includes('column') ? 'Run the location SQL to enable this' : 'Could not save location');
+    showToast(e.message && e.message.includes('column') ? 'Could not save your location — please try again' : 'Could not save location');
   } finally {
     btn.disabled = false; btn.textContent = 'Save location';
   }
@@ -6489,7 +6534,10 @@ async function writeWithFallback(builder, payload) {
 
 function gapNotice(dropped) {
   if (!dropped || !dropped.length) return;
-  showToast('Saved, but ' + dropped.join(', ') + ' needs the latest SQL');
+  // The save succeeded; some optional fields couldn't be stored. Tell the
+  // person what stuck, not which migration is missing — that's for the logs.
+  console.log('[schema] these columns are missing and were skipped:', dropped);
+  showToast('Saved — some details couldn\'t be stored');
 }
 
 // ============================================================
@@ -6603,7 +6651,7 @@ async function runDiagnostics() {
 function handleErrorText(e, fallback) {
   const m = (e && e.message) || '';
   if (m.includes('duplicate') || m.includes('unique')) return 'That ID is already taken. Pick another.';
-  if (m.includes('column')) return 'Run the latest SQL — a database column is missing.';
+  if (m.includes('column')) return 'Something went wrong saving that. Please try again.';
   return fallback;
 }
 
@@ -7040,7 +7088,7 @@ async function loadPetTaggedPosts(petId) {
       </div>`;
     }).join('');
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>Tagging not set up yet</p><span>Run the step 5 SQL to enable tags.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>Tagging not set up yet</p><span>Tagged posts are unavailable right now.</span></div>';
   }
 }
 
@@ -7077,7 +7125,7 @@ async function loadPetDocs(petId, mine) {
         ${mine ? `<button class="cmt-del" onclick="deletePetDoc('${d.id}')"><i class="ti ti-trash"></i></button>` : ''}
       </div>`).join('');
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-file-text"></i><p>Documents not set up yet</p><span>Run the step 5 SQL to enable documents.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-file-text"></i><p>Documents not set up yet</p><span>Documents are unavailable right now.</span></div>';
   }
 }
 
@@ -7276,7 +7324,7 @@ async function loadComments() {
     wrap.scrollTop = wrap.scrollHeight;
   } catch(e) {
     console.log('comments error:', e);
-    wrap.innerHTML = '<div class="list-empty" style="padding:26px 12px;"><i class="ti ti-message-circle"></i><p>Comments not set up yet</p><span>Run the step 4 SQL to enable comments.</span></div>';
+    wrap.innerHTML = '<div class="list-empty" style="padding:26px 12px;"><i class="ti ti-message-circle"></i><p>Comments not set up yet</p><span>Comments are unavailable right now. Please try again.</span></div>';
   }
 }
 
@@ -7656,7 +7704,7 @@ async function loadInbox() {
     }).join('');
   } catch(e) {
     console.log('inbox error:', e);
-    if (msgWrap) msgWrap.innerHTML = '<div class="list-empty"><i class="ti ti-message-circle"></i><p>Messaging not set up yet</p><span>Run the step 3 SQL to enable messages.</span></div>';
+    if (msgWrap) msgWrap.innerHTML = '<div class="list-empty"><i class="ti ti-message-circle"></i><p>Messaging not set up yet</p><span>Messages are unavailable right now. Please try again.</span></div>';
   }
 }
 
@@ -7724,7 +7772,7 @@ async function loadMessages() {
     if (unread.length) sb.from('messages').update({ read_at: new Date().toISOString() }).in('id', unread).then(()=>{});
   } catch(e) {
     console.log('messages error:', e);
-    el.innerHTML = '<div class="list-empty"><i class="ti ti-message-circle"></i><p>Messaging not set up yet</p><span>Run the step 3 SQL to create the messages table.</span></div>';
+    el.innerHTML = '<div class="list-empty"><i class="ti ti-message-circle"></i><p>Messaging not set up yet</p><span>Messages are unavailable right now. Please try again.</span></div>';
   }
 }
 
@@ -7918,7 +7966,7 @@ async function toggleFollow(type, id, btnId) {
   } catch(e) {
     console.log('toggleFollow:', e);
     showToast(String(e.message || '').includes('function')
-      ? 'Run the step 12 SQL to enable following'
+      ? 'Could not update — please try again'
       : (e.message || 'Could not update'));
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
@@ -8061,7 +8109,7 @@ async function loadFollowScreen() {
     }
   } catch(e) {
     console.log('loadFollowScreen:', e);
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-users"></i><p>Following needs the step 12 SQL</p><span>Run it in Supabase, then reload.</span></div>';
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-users"></i><p>Could not load this list</p><span>Please try again shortly.</span></div>';
   }
 }
 
