@@ -921,6 +921,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
         <button class="own-cta" id="own-follow-btn" style="background:var(--coral);color:#fff;" onclick="toggleFollow('user', ownerViewId, 'own-follow-btn')">
           <i class="ti ti-plus" style="font-size:15px;vertical-align:-2px;margin-right:4px;"></i>Follow
         </button>
+        <button class="own-cta" id="own-report-btn" style="background:var(--gray-l);color:var(--t2);flex:0 0 auto;padding:12px 14px;" onclick="openReport('profile', ownerViewId)" title="Report this person">
+          <i class="ti ti-flag" style="font-size:15px;"></i>
+        </button>
       </div>
     </div>
 
@@ -1836,6 +1839,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-
 
     <button class="sbtn" id="loc-save-btn" onclick="saveLocation()" disabled>Save location</button>
     <button class="cbtn" onclick="closeModal('m-location')">Cancel</button>
+  </div>
+</div>
+
+<!-- Report content -->
+<div class="modal-bg" id="m-report">
+  <div class="modal-sheet"><div class="mhandle"></div><div class="mtitle">Report this</div>
+    <p style="font-size:12px;color:var(--t2);margin:-8px 0 14px;line-height:1.5;">
+      Reports are reviewed by the PetXchange team. The person won't know who reported them.
+    </p>
+    <input type="hidden" id="rpt-type"><input type="hidden" id="rpt-id">
+    <div class="fgrp"><label class="flbl">What's wrong?</label>
+      <select class="fsel" id="rpt-reason">
+        <option value="animal_welfare">Animal welfare concern — an animal may be at risk</option>
+        <option value="scam">Scam or fraud</option>
+        <option value="harassment">Harassment or abuse</option>
+        <option value="spam">Spam or repeated posting</option>
+        <option value="fake">Fake listing or fake account</option>
+        <option value="inappropriate">Inappropriate content</option>
+        <option value="misinformation">Misleading information</option>
+        <option value="other">Something else</option>
+      </select>
+    </div>
+    <div class="fgrp"><label class="flbl">Anything else we should know? (optional)</label>
+      <textarea class="finp" id="rpt-details" rows="3" placeholder="Add any detail that helps us understand…" style="resize:none;"></textarea>
+    </div>
+    <div style="background:var(--red-l);border-radius:var(--rs);padding:11px 13px;margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--red);line-height:1.5;">
+        <b>If an animal is in immediate danger</b>, please also contact your local animal welfare authority — a report here alone may not reach them in time.
+      </div>
+    </div>
+    <button class="sbtn" id="btn-send-report" onclick="submitReport()">Send report</button>
+    <button class="cbtn" onclick="closeModal('m-report')">Cancel</button>
   </div>
 </div>
 
@@ -2783,6 +2818,7 @@ async function loadProfile() {
     updateMyProfileScreen();
     updateHeaderAvatar();
     refreshNotifCount();
+    checkAccountStanding();
   } catch(e) { console.log('Profile load error:', e); }
 }
 
@@ -6490,6 +6526,96 @@ function locationBanner(context) {
   </div>`;
 }
 
+
+// ============================================================
+// REPORTING — users flag content for the moderation queue
+// ============================================================
+function openReport(type, id) {
+  if (!currentUser) { showToast('Sign in to report'); showScreen('s-auth'); return; }
+  if (!id) return;
+  if (type === 'profile' && id === currentUser.id) { showToast("That's your own profile"); return; }
+  document.getElementById('rpt-type').value = type;
+  document.getElementById('rpt-id').value = id;
+  document.getElementById('rpt-details').value = '';
+  document.getElementById('rpt-reason').selectedIndex = 0;
+  const titles = { post:'Report this post', comment:'Report this comment',
+                   profile:'Report this person', business:'Report this business' };
+  document.querySelector('#m-report .mtitle').textContent = titles[type] || 'Report this';
+  openModal('m-report');
+}
+
+async function submitReport() {
+  const type = document.getElementById('rpt-type').value;
+  const id = document.getElementById('rpt-id').value;
+  const reason = document.getElementById('rpt-reason').value;
+  const details = document.getElementById('rpt-details').value.trim();
+  const btn = document.getElementById('btn-send-report');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const { error } = await sb.from('reports').insert({
+      reporter_id: currentUser.id, target_type: type, target_id: id,
+      reason, details: details || null
+    });
+    if (error) {
+      // The one-report-per-person rule surfaces as a duplicate key error.
+      if (/duplicate|unique/i.test(error.message || '')) {
+        closeModal('m-report');
+        showToast("You've already reported this — we're looking into it");
+        return;
+      }
+      throw error;
+    }
+    closeModal('m-report');
+    showToast('Report sent. Thank you — we review every one.');
+  } catch (e) {
+    console.log('report error:', e);
+    showToast('Could not send the report. Please try again.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send report';
+  }
+}
+
+// ============================================================
+// ACCOUNT STANDING — a restricted user should know why, not just
+// find that buttons quietly stop working.
+// ============================================================
+async function checkAccountStanding() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await sb.rpc('my_account_status');
+    if (error) return;                      // moderation not installed yet
+    const st = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!st || st.status === 'active') return;
+
+    if (st.status === 'banned') {
+      showStandingBanner('Your account has been banned',
+        st.reason || 'Please contact petxchangeindia@gmail.com if you think this is a mistake.', 'var(--red-l)', 'var(--red)');
+    } else if (st.status === 'suspended') {
+      const until = st.suspended_until ? new Date(st.suspended_until) : null;
+      const when = until ? until.toLocaleDateString([], { day:'numeric', month:'short' }) : '';
+      showStandingBanner('Your account is suspended' + (when ? ' until ' + when : ''),
+        st.reason || 'You can browse, but not post, comment or message.', 'var(--red-l)', 'var(--red)');
+    } else if (st.status === 'warned') {
+      showStandingBanner('You have a warning',
+        st.reason || 'Please review our community guidelines.', 'var(--amber-l)', 'var(--amber-m)');
+    }
+  } catch (e) { /* moderation tables not installed — ignore */ }
+}
+
+function showStandingBanner(title, body, bg, fg) {
+  if (document.getElementById('standing-banner')) return;
+  const el = document.createElement('div');
+  el.id = 'standing-banner';
+  el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:150;background:' + bg +
+    ';padding:12px 16px;display:flex;align-items:center;gap:11px;box-shadow:0 2px 10px rgba(0,0,0,.08);';
+  el.innerHTML =
+    '<i class="ti ti-alert-triangle" style="font-size:20px;color:' + fg + ';flex-shrink:0;"></i>' +
+    '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;color:' + fg + ';">' + escHtml(title) + '</div>' +
+    '<div style="font-size:11.5px;color:' + fg + ';opacity:.9;line-height:1.4;margin-top:1px;">' + escHtml(body) + '</div></div>' +
+    '<button onclick="this.parentElement.remove()" style="background:none;border:none;color:' + fg + ';font-size:18px;cursor:pointer;padding:0 4px;">&times;</button>';
+  document.body.appendChild(el);
+}
+
 // ============================================================
 // RESILIENT WRITES — degrade gracefully when the DB is behind
 // If a column doesn't exist yet, drop it and retry instead of
@@ -7195,6 +7321,8 @@ function openPostMenu(postId) {
 
   if (mine)
     items.push(`<div class="sheet-act danger" onclick="closeModal('m-post-actions');deletePost('${postId}')"><i class="ti ti-trash"></i> Delete post</div>`);
+  else
+    items.push(`<div class="sheet-act danger" onclick="closeModal('m-post-actions');openReport('post','${postId}')"><i class="ti ti-flag"></i> Report post</div>`);
 
   document.getElementById('pact-title').textContent = cfg.label;
   document.getElementById('pact-list').innerHTML = items.join('');
