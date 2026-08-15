@@ -844,8 +844,9 @@ img{background:var(--surface-2)}
 .sp-tag{font-size:13px;color:rgba(255,255,255,.66);letter-spacing:.2px;animation:px-rise .55s .18s var(--ease-out) both}
 #s-splash > div > div:nth-child(4){animation:px-rise .55s .26s var(--ease-out) both;color:rgba(255,255,255,.5)!important}
 #s-splash > div > div:nth-child(4) span{color:rgba(255,255,255,.55)!important}
+.sp-actions{display:flex;flex-direction:column;gap:11px;max-width:290px;margin:44px auto 0}
 .sp-btn{
-  margin-top:40px;padding:17px 54px;font-size:16.5px;letter-spacing:-.01em;
+  margin-top:0;width:100%;padding:17px 24px;font-size:16.5px;letter-spacing:-.01em;
   background:linear-gradient(155deg,#F0784B,var(--coral));
   box-shadow:0 8px 26px -8px rgba(216,90,48,.9);
   animation:px-rise .55s .34s var(--ease-out) both;
@@ -853,7 +854,8 @@ img{background:var(--surface-2)}
 }
 .sp-btn:active{transform:translateY(2px) scale(.985);box-shadow:0 4px 14px -6px rgba(216,90,48,.9)}
 .sp-login{
-  margin-top:12px;border-color:rgba(255,255,255,.22);color:rgba(255,255,255,.75);
+  margin-top:0;width:100%;padding:16px 24px;font-size:15.5px;font-weight:600;
+  border-width:1.5px;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.9);
   animation:px-rise .55s .42s var(--ease-out) both;transition:background .18s,border-color .18s;
 }
 .sp-login:active{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.4)}
@@ -883,6 +885,25 @@ img{background:var(--surface-2)}
 .auth-back{background:var(--surface-2);border:1px solid var(--bd);transition:background .16s}
 .auth-back:active{background:var(--gray-l)}
 .auth-err,.auth-ok{border-radius:var(--rs);font-weight:500;line-height:1.5}
+
+/* --- Auth: the signup form is taller than the viewport. The base sheet
+   centred it inside an overflow:hidden screen, which clipped the top and
+   left the Create account button unreachable. The inner wrapper scrolls
+   instead, so the back button stays put while the form moves. --- */
+#s-auth{
+  justify-content:flex-start;align-items:center;padding:0;overflow:hidden;
+}
+#s-auth > div{
+  width:100%;max-width:392px;margin:auto 0;max-height:100%;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:60px 22px calc(40px + env(safe-area-inset-bottom));
+  scrollbar-width:thin;
+}
+.auth-back{position:absolute;top:14px;left:14px;z-index:6}
+
+/* The role step can also outgrow a short phone screen. */
+#s-role{overflow-y:auto;-webkit-overflow-scrolling:touch}
+#s-role > div{padding-bottom:calc(32px + env(safe-area-inset-bottom))}
 
 /* ---------- 7. Role picker ---------- */
 #s-role{background:var(--bg)}
@@ -1018,7 +1039,17 @@ img{background:var(--surface-2)}
   background:rgba(20,12,8,.6);backdrop-filter:blur(8px);
   padding:5px 11px;font-weight:600;letter-spacing:.01em;
 }
-.pc-owner{transition:background .16s,transform .14s var(--ease)}
+.pc-owner{
+  transition:background .16s,transform .14s var(--ease);
+  max-width:62%;gap:6px;padding:5px 11px 5px 5px;
+}
+.pc-owner .pc-owner-avi{
+  width:20px;height:20px;border-radius:50%;flex-shrink:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.22);color:#fff;font-size:10px;font-weight:800;
+}
+.pc-owner .pc-owner-avi img{width:100%;height:100%;object-fit:cover}
+.pc-owner .pc-owner-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pc-owner:active{background:rgba(20,12,8,.85);transform:scale(.95)}
 .pc-intent-tag{padding:5px 12px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .dist-badge{background:rgba(20,12,8,.6);backdrop-filter:blur(8px);padding:4px 10px}
@@ -1386,6 +1417,17 @@ img{background:var(--surface-2)}
 .own-post{border-radius:var(--r);background:var(--card);padding:14px}
 .loading-spin{border-width:2.5px}
 
+/* Why a post shows on a pet's timeline */
+.tl-why{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 9px;border-radius:100px;margin-bottom:9px;
+  background:var(--coral-l);color:var(--coral-m);
+}
+.tl-why.mention{background:var(--purple-l);color:var(--purple-m)}
+.tl-why.about{background:var(--teal-l);color:var(--teal-m)}
+.tl-why i{font-size:11px}
+
 /* Dark-mode fixes for the few places that hardcoded white */
 [data-theme="dark"] .pc-badge{background:rgba(40,34,32,.92);color:var(--text)}
 [data-theme="dark"] .own-back,[data-theme="dark"] .pet-back{background:rgba(30,26,24,.86);color:var(--text)}
@@ -1518,7 +1560,7 @@ img{background:var(--surface-2)}
           <input class="finp" type="text" id="s-handle" placeholder="yourname" style="flex:1;" autocomplete="off"
                  oninput="checkHandle('s-handle','profiles','s-handle-msg')">
         </div>
-        <div class="pf-hint" id="s-handle-msg">This is how people find and tag you. You can change it later.</div>
+        <div class="pf-hint" id="s-handle-msg">Required. 3–20 characters: letters, numbers, underscore. This is how people find and tag you — you can change it later in Edit profile.</div>
       </div>
       <div class="fgrp"><label class="flbl">Email *</label>
         <input class="finp" type="email" id="s-email" placeholder="you@email.com" autocomplete="email">
@@ -1584,15 +1626,10 @@ img{background:var(--surface-2)}
     <div class="sp-logo"><i class="ti ti-planet"></i></div>
     <div class="sp-name">PetXchange</div>
     <div class="sp-tag">All Pets. All Needs. One Exchange.</div>
-    <div style="margin-top:36px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--t2);">
-      <span><i class="ti ti-dog" style="font-size:13px;vertical-align:-2px;"></i> Dogs</span>
-      <span><i class="ti ti-cat" style="font-size:13px;vertical-align:-2px;"></i> Cats</span>
-      <span><i class="ti ti-fish" style="font-size:13px;vertical-align:-2px;"></i> Fish</span>
-      <span><i class="ti ti-bird" style="font-size:13px;vertical-align:-2px;"></i> Birds</span>
-      <span style="color:var(--t3);">& all species</span>
+    <div class="sp-actions">
+      <button class="sp-btn" onclick="startSignup()">Sign up</button>
+      <button class="sp-login" onclick="startLogin()">Log in</button>
     </div>
-    <button class="sp-btn" onclick="startSignup()">Create account</button><br>
-    <button class="sp-login" onclick="startLogin()">I already have an account</button>
   </div>
 </div>
 
@@ -1953,7 +1990,7 @@ img{background:var(--surface-2)}
     <div style="padding:14px 16px 0;">
       <div id="pet-badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
       <div class="own-stats" style="margin:0 0 12px;">
-        <div class="own-stat"><div class="own-stat-n" id="pet-s1">0</div><div class="own-stat-l">Tagged posts</div></div>
+        <div class="own-stat"><div class="own-stat-n" id="pet-s1">0</div><div class="own-stat-l">Mentions</div></div>
         <div class="own-stat"><div class="own-stat-n" id="pet-s2">0</div><div class="own-stat-l">Engagements</div></div>
         <div class="own-stat"><div class="own-stat-n" id="pet-s5">0</div><div class="own-stat-l">Photos</div></div>
         <div class="own-stat"><div class="own-stat-n" id="pet-s4">0</div><div class="own-stat-l">Followers</div></div>
@@ -1964,7 +2001,7 @@ img{background:var(--surface-2)}
 
     <div class="own-tab-bar">
       <button class="own-tab on" onclick="petTab('gallery',this)">Gallery</button>
-      <button class="own-tab" onclick="petTab('posts',this)">Tagged posts</button>
+      <button class="own-tab" onclick="petTab('posts',this)">Mentions</button>
       <button class="own-tab" onclick="petTab('docs',this)">Documents</button>
       <button class="own-tab" onclick="petTab('about',this)">About</button>
     </div>
@@ -4328,7 +4365,9 @@ function mapPetToCard(p, owner){
     bg, icon, color,
     tags,
     intent: p.intent || 'connect',
-    ownerName: (owner && owner.full_name) || 'PetXchange user',
+    ownerName: (owner && owner.full_name) || 'Pet parent',
+    ownerPhoto: (owner && owner.avatar_url) || '',
+    ownerHandle: (owner && owner.handle) || '',
     ownerColor: color,
     ownerBio: (owner && owner.bio) || 'Pet parent on PetXchange.',
     ownerCity: (owner && owner.city) || '',
@@ -4383,7 +4422,7 @@ async function loadDiscoverPets(){
     let profilesById = {};
     if (pets && pets.length) {
       const ownerIds = [...new Set(pets.map(p=>p.owner_id))];
-      const { data: profs } = await sbq(() => sb.from('profiles').select('id, full_name, city, avatar_url, bio').in('id', ownerIds), 'Discover owners');
+      const { data: profs } = await sbq(() => sb.from('profiles').select('id, full_name, handle, city, avatar_url, bio').in('id', ownerIds), 'Discover owners');
       (profs||[]).forEach(pr=>{ profilesById[pr.id]=pr; });
       const { data: postsData } = await sbq(() => sb.from('posts').select('author_id').in('author_id', ownerIds), 'Discover post counts');
       const postCounts = {};
@@ -4451,7 +4490,12 @@ function buildCards(){
         <div class="pc-dist"><i class="ti ti-map-pin" style="font-size:10px;"></i> ${p.dist}</div>
         ${p.distanceKm != null ? `<div class="dist-badge" style="position:absolute;top:12px;left:12px;"><i class="ti ti-navigation" style="font-size:10px;"></i>${p.distanceKm} km</div>` : ''}
         <div class="pc-intent-tag" style="background:${ibg};color:${ifg};">${INTENT_LABELS[p.intent]}</div>
-        <div class="pc-owner" id="ob${i}"><i class="ti ti-user" style="font-size:11px;"></i>Open profile</div>
+        <div class="pc-owner" id="ob${i}" title="Open ${escAttr(p.ownerName||'owner')}'s profile">
+          <span class="pc-owner-avi">${p.ownerPhoto
+            ? `<img src="${escAttr(p.ownerPhoto)}" alt="">`
+            : escHtml((p.ownerName||'P').trim().charAt(0).toUpperCase())}</span>
+          <span class="pc-owner-name">${escHtml(p.ownerName || 'Pet parent')}</span>
+        </div>
         ${p.handle?`<div class="pc-dist" style="bottom:70px;">@${escHtml(p.handle)}</div>`:''}
       </div>
       <div class="like-ov">FOLLOW</div><div class="nope-ov">PASS</div>
@@ -7977,35 +8021,116 @@ function aboutRow(label, value) {
     <span style="font-size:13px;font-weight:600;text-align:right;">${escHtml(String(value))}</span></div>`;
 }
 
+// A pet's timeline is everything that points at it, not just formal tags:
+// posts it was tagged in, posts that @mention its ID, and the owner's own
+// lost / found / adoption / care posts that name it. Each entry says why
+// it is here so the list never looks arbitrary.
 async function loadPetTaggedPosts(petId) {
   const wrap = document.getElementById('pet-posts-list');
+  const pet = petPageData || {};
+  const SEL = 'id, author_id, post_type, body, details, media_url, media_type, ' +
+              'likes_count, comments_count, created_at, is_resolved, profiles ( full_name, handle, avatar_url )';
+  const found = new Map();   // post id -> { post, why }
+  const add = (post, why) => {
+    if (!post) return;
+    if (found.has(post.id)) return;   // first reason wins: tagged > mentioned > about
+    found.set(post.id, { post, why });
+  };
+
   try {
-    const { data: tags } = await sb.from('post_tags').select('post_id').eq('pet_id', petId).limit(60);
-    const ids = (tags || []).map(t => t.post_id);
-    if (!ids.length) {
-      wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>No tagged posts yet</p><span>Tag this pet when you post to build its timeline.</span></div>';
-      document.getElementById('pet-s1').textContent = 0;
-      document.getElementById('pet-s2').textContent = 0;
+    // 1. Explicitly tagged
+    try {
+      const { data: tags } = await sb.from('post_tags').select('post_id').eq('pet_id', petId).limit(80);
+      const ids = [...new Set((tags || []).map(t => t.post_id))].filter(Boolean);
+      if (ids.length) {
+        const { data } = await sb.from('posts').select(SEL).in('id', ids).limit(80);
+        (data || []).forEach(post => add(post, 'tagged'));
+      }
+    } catch(e) { console.log('pet tags:', e); }
+
+    // 2. Mentioned by @handle anywhere in the body
+    if (pet.handle) {
+      try {
+        const { data } = await sb.from('posts').select(SEL)
+          .ilike('body', '%@' + pet.handle + '%')
+          .order('created_at', { ascending:false }).limit(60);
+        (data || []).forEach(post => add(post, 'mentioned'));
+      } catch(e) { console.log('pet mentions:', e); }
+    }
+
+    // 3. The owner's posts that are about this pet by name
+    if (pet.owner_id && pet.name) {
+      try {
+        const { data } = await sb.from('posts').select(SEL)
+          .eq('author_id', pet.owner_id)
+          .order('created_at', { ascending:false }).limit(80);
+        const needle = String(pet.name).trim().toLowerCase();
+        (data || []).forEach(post => {
+          const d = post.details || {};
+          const named = String(d.pet_name || '').trim().toLowerCase() === needle;
+          const inBody = new RegExp('(^|[^a-z0-9])' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)', 'i')
+                          .test(post.body || '');
+          if (named || inBody) add(post, 'about');
+        });
+      } catch(e) { console.log('pet owner posts:', e); }
+    }
+
+    const list = [...found.values()].sort((a, b) =>
+      new Date(b.post.created_at) - new Date(a.post.created_at));
+
+    document.getElementById('pet-s1').textContent = list.length;
+    document.getElementById('pet-s2').textContent = list.reduce(
+      (n, x) => n + (x.post.likes_count || 0) + (x.post.comments_count || 0), 0);
+
+    if (!list.length) {
+      wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i>' +
+        '<p>Nothing about ' + escHtml(pet.name || 'this pet') + ' yet</p>' +
+        '<span>Posts that tag ' + (pet.handle ? '@' + escHtml(pet.handle) : 'this pet') +
+        ', mention it by ID, or name it will collect here.</span></div>';
       return;
     }
-    const { data: posts } = await sb.from('posts')
-      .select('id, post_type, body, details, media_url, media_type, likes_count, comments_count, created_at, profiles ( full_name )')
-      .in('id', ids).order('created_at', { ascending:false });
-    const list = posts || [];
-    document.getElementById('pet-s1').textContent = list.length;
-    document.getElementById('pet-s2').textContent = list.reduce((n,p) => n + (p.likes_count||0) + (p.comments_count||0), 0);
-    wrap.innerHTML = list.map(p => {
-      const cfg = POST_TYPES[p.post_type] || POST_TYPES.general;
-      return `<div class="own-post" onclick="openComments('${p.id}')" style="cursor:pointer;">
-        <div style="font-size:11px;color:var(--t3);margin-bottom:4px;">${escHtml(cfg.label)} · ${getTimeAgo(p.created_at)} · ${escHtml((p.profiles&&p.profiles.full_name)||'User')}</div>
-        ${p.media_url && !(p.media_type||'').startsWith('video') ? `<img src="${escAttr(p.media_url)}" style="width:100%;border-radius:8px;margin-bottom:6px;max-height:180px;object-fit:cover;" alt="">` : ''}
-        <div style="font-size:13px;line-height:1.5;">${escHtml(p.body || (p.details && p.details.pet_name) || cfg.label)}</div>
-        <div style="font-size:11px;color:var(--t3);margin-top:6px;"><i class="ti ti-heart" style="font-size:11px;"></i> ${p.likes_count||0} &nbsp; <i class="ti ti-message-circle" style="font-size:11px;"></i> ${p.comments_count||0}</div>
-      </div>`;
-    }).join('');
+    wrap.innerHTML = list.map(x => petTimelineCard(x.post, x.why)).join('');
   } catch(e) {
-    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>Tagging not set up yet</p><span>Tagged posts are unavailable right now.</span></div>';
+    console.log('pet timeline:', e);
+    wrap.innerHTML = '<div class="list-empty"><i class="ti ti-news"></i><p>Could not load this timeline</p>' +
+      '<span>Check your connection and try again.</span></div>';
   }
+}
+
+const TL_WHY = {
+  tagged:    ['tagged',   'ti-tag',        'Tagged'],
+  mentioned: ['mention',  'ti-at',         'Mentioned'],
+  about:     ['about',    'ti-paw',        'About this pet']
+};
+
+function petTimelineCard(post, why) {
+  const cfg = POST_TYPES[post.post_type] || POST_TYPES.general;
+  const w = TL_WHY[why] || TL_WHY.tagged;
+  const pr = post.profiles || {};
+  const author = pr.full_name || 'Someone';
+  const isVideo = (post.media_type || '').startsWith('video');
+  const text = post.body || (post.details && post.details.pet_name) || cfg.label;
+  return `
+  <div class="post-card" style="margin:0 12px 10px;cursor:pointer;" onclick="openComments('${post.id}')">
+    <span class="tl-why ${w[0]}"><i class="ti ${w[1]}"></i>${w[2]}</span>
+    ${post.is_resolved ? '<span class="resolved-tag" style="margin-left:6px;">Resolved</span>' : ''}
+    <div class="post-hdr" style="margin-bottom:9px;">
+      <div class="post-avi" style="background:var(--coral-l);color:var(--coral-m);">
+        ${pr.avatar_url ? `<img src="${escAttr(pr.avatar_url)}" alt="">` : escHtml(author.charAt(0).toUpperCase())}
+      </div>
+      <div class="post-meta">
+        <div class="post-name">${escHtml(author)}</div>
+        <div class="post-time">${escHtml(cfg.label)} · ${getTimeAgo(post.created_at)}</div>
+      </div>
+    </div>
+    ${post.media_url && !isVideo
+      ? `<div class="post-media has-media" style="margin-bottom:10px;"><img src="${escAttr(post.media_url)}" alt=""></div>` : ''}
+    <div class="post-body" style="margin-bottom:0;">${escHtml(text)}</div>
+    <div class="post-acts" style="margin-top:12px;">
+      <span class="post-act" style="color:var(--t2);"><i class="ti ti-heart"></i> ${post.likes_count || 0}</span>
+      <span class="post-act" style="color:var(--t2);"><i class="ti ti-message-circle"></i> ${post.comments_count || 0}</span>
+    </div>
+  </div>`;
 }
 
 async function loadPetFollowers(petId) {
