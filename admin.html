@@ -56,6 +56,10 @@ a{color:var(--coral-m)}
 .pane{display:none}
 .pane.on{display:block}
 
+.empty-detail{font-size:12.5px;color:var(--t2);line-height:1.6;max-width:440px;margin:8px auto 0}
+.empty-detail code{background:var(--bg);border:1px solid var(--bd);border-radius:5px;padding:1px 5px;font-size:12px}
+.toolbar-count{font-size:12.5px;color:var(--t2);font-weight:600;align-self:center}
+
 /* ---------- stats ---------- */
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:22px}
 .stat{background:var(--card);border-radius:var(--r);padding:16px 18px;border:1px solid var(--bd)}
@@ -203,6 +207,7 @@ a{color:var(--coral-m)}
           <option value="banned">Banned</option>
         </select>
         <button class="act solid" onclick="loadUsers()">Search</button>
+        <span id="user-count" class="toolbar-count"></span>
       </div>
       <div id="users-list"></div>
     </div>
@@ -522,19 +527,79 @@ const USTATUS = {
 
 async function loadUsers(){
   $('users-list').innerHTML='<div class="loading"><div class="spin"></div>Loading…</div>';
+  const search = $('user-search').value.trim();
+  const status = $('user-status').value;
   try{
     const { data, error } = await sb.rpc('admin_list_users', {
-      p_search: $('user-search').value.trim() || null,
-      p_status: $('user-status').value
+      p_search: search || null,
+      p_status: status
     });
     if(error) throw error;
-    const rows=data||[];
-    $('users-list').innerHTML = rows.length ? rows.map(userCard).join('')
-      : '<div class="empty"><i class="ti ti-users"></i><p>No users match</p></div>';
+    const rows = data || [];
+    $('user-count').textContent = rows.length
+      ? rows.length + (rows.length === 200 ? '+ users' : ' user' + (rows.length>1?'s':''))
+      : '';
+    if(rows.length){
+      $('users-list').innerHTML = rows.map(userCard).join('');
+      return;
+    }
+    // Empty with no filters applied is almost never "there are no users".
+    // Work out which of the three real causes it is and say so, rather than
+    // leaving an empty state that looks the same for all of them.
+    if(search || status !== 'all'){
+      $('users-list').innerHTML = '<div class="empty"><i class="ti ti-users"></i>' +
+        '<p>No users match those filters</p></div>';
+      return;
+    }
+    await diagnoseEmptyUsers();
   }catch(e){
     console.log('users:', e);
-    $('users-list').innerHTML='<div class="empty"><i class="ti ti-alert-circle"></i><p>Could not load users</p></div>';
+    const msg = (e && e.message) || String(e);
+    const missing = /could not find the function|does not exist|schema cache/i.test(msg);
+    $('users-list').innerHTML = '<div class="empty"><i class="ti ti-alert-circle"></i>' +
+      '<p>Could not load users</p>' +
+      '<div class="empty-detail">' + esc(msg) + '</div>' +
+      (missing
+        ? '<div class="empty-detail">The <code>admin_list_users</code> function is not in this database. ' +
+          'Run <code>petxchange_admin.sql</code> in the Supabase SQL editor, then reload.</div>'
+        : '') +
+      '</div>';
   }
+}
+
+// Distinguishes "no accounts exist" from "this admin session cannot read them".
+async function diagnoseEmptyUsers(){
+  let profileCount = null, whoami = null;
+  try{
+    const { count } = await sb.from('profiles').select('id', { count:'exact', head:true });
+    profileCount = count;
+  }catch(e){ console.log('profile count:', e); }
+  try{
+    const { data } = await sb.rpc('my_account_status');
+    whoami = typeof data === 'string' ? JSON.parse(data) : data;
+  }catch(e){ console.log('whoami:', e); }
+
+  if(profileCount === 0){
+    $('users-list').innerHTML = '<div class="empty"><i class="ti ti-users"></i>' +
+      '<p>No accounts yet</p>' +
+      '<div class="empty-detail">Nobody has signed up on the app yet. ' +
+      'Accounts appear here as soon as someone creates one.</div></div>';
+    return;
+  }
+  if(whoami && whoami.is_admin === false){
+    $('users-list').innerHTML = '<div class="empty"><i class="ti ti-shield-x"></i>' +
+      '<p>This account is not an admin in the database</p>' +
+      '<div class="empty-detail">Add yourself to the <code>admins</code> table — see the last section of ' +
+      '<code>petxchange_admin.sql</code> — then sign out and back in.</div></div>';
+    return;
+  }
+  $('users-list').innerHTML = '<div class="empty"><i class="ti ti-alert-circle"></i>' +
+    '<p>' + (profileCount === null
+        ? 'The user list came back empty'
+        : profileCount + ' account' + (profileCount===1?'':'s') + ' exist, but none were returned') + '</p>' +
+    '<div class="empty-detail">The <code>admin_list_users</code> function returned no rows. ' +
+    'The usual cause is an older copy of it still in the database — re-run <code>petxchange_admin.sql</code> ' +
+    'in the Supabase SQL editor and reload this page.</div></div>';
 }
 
 function userCard(u){
